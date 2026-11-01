@@ -1,0 +1,20 @@
+{
+  "code": "el",
+  "name": "Greek",
+  "flag": "🇬🇷",
+  "voice": "el-GR",
+  "monolingual": "Greek",
+  "bilingual": "Greek - English",
+  "script": "Greek",
+  "recognizer": "el",
+  "ocr": ["ru-RU"],
+  "spellChecker": "el",
+  "verb": { "endings": ["ω", "ώ", "μαι"] },
+  "verbLabels": ["vt", "vi", "v"],
+  "lemmas": "lemmas.tsv.xz",
+  "gloss": {
+    "labels": ["το", "η", "ο"],
+    "grammarNotes": ["αόρ", "παθ", "μτχ", "παρακ", "ενεστ", "πληθ", "μέλλ"],
+    "variants": [["^([^\\s,]+),\\s*κα[ιί]\\S*", "$1"]]
+  }
+}

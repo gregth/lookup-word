@@ -1,0 +1,20 @@
+{
+  "code": "nl",
+  "name": "Dutch",
+  "flag": "🇳🇱",
+  "voice": "nl-NL",
+  "monolingual": "Dutch",
+  "bilingual": "Dutch - English",
+  "recognizer": "nl",
+  "ocr": ["nl-NL"],
+  "spellChecker": "nl",
+  "verb": { "entryPattern": "\\s(ww|overg|onoverg)\\b", "prefix": 60 },
+  "verbLabels": ["ww", "hulpww", "overg", "onoverg", "wederk"],
+  "stripHints": true,
+  "gloss": {
+    "labels": ["bn", "bw", "znw", "ww", "vz", "vnw", "tw", "het", "de", "zelfstandig", "naamwoord", "bijvoeglijk",
+               "werkwoord", "overg", "onoverg", "wederk"],
+    "inner": ["znw", "ww", "hulpww", "bn", "bw", "overg", "onoverg", "voorz", "wederk", "ook"],
+    "cuts": ["zie:"]
+  }
+}

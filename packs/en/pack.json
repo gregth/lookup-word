@@ -1,0 +1,17 @@
+{
+  "code": "en",
+  "name": "English",
+  "flag": "🇬🇧",
+  "voice": "en-GB",
+  "monolingual": "English",
+  "recognizer": "en",
+  "ocr": ["en-US"],
+  "spellChecker": "en",
+  "verb": { "entryPattern": "^[^|]+\\|[^|]+\\|\\s*verb\\b" },
+  "gloss": {
+    "labels": ["adj", "adv", "n", "nn", "nf", "nm", "v", "vi", "vt", "m", "f", "o", "C", "U", "verb", "noun",
+               "adjective", "adverb", "pl", "nnpl", "pron", "prep", "conj"],
+    "inner": ["&", "aux", "gen"],
+    "cuts": ["DERIVATIVES", "PHRASES", "IDIOMS", "ORIGIN"]
+  }
+}
