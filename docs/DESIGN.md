@@ -116,29 +116,36 @@ flowchart LR
 ## 4. The Markdown store's safe write
 
 The vocabulary file may live in a notes vault that another app syncs or saves at the same moment. `MarkdownStore.save()`
-therefore never writes over a file it has not read whole, or one that changed since it read it.
+works hard not to write over a file it hasn't read whole, or one that changed since it read it.
 
 ```mermaid
 flowchart TD
-  A["store.save(e) on the saves queue"] --> R["read(): up to 5 tries, 0.3 s apart"]
-  R --> W{"incomplete()? empty, requirePrefix, requireText, minBytes"}
-  W -- "never whole" --> N1["Not saved: the reason"]
-  W -- whole --> K{"word already in that language's table?"}
+  A["store.save(e) on the saves queue"] --> M{"file missing?"}
+  M -- "never saved there" --> NEW["create it: # Vocabulary"]
+  M -- "saved there before" --> N0["Not saved: it moved (the next lookup starts a new one)"]
+  NEW --> R
+  M -- no --> R["read(): up to 5 tries, 0.3 s apart"]
+  R --> W{"unreadable, empty, or under half the size after the last save?"}
+  W -- "for over a second" --> N1["Not saved: the reason (the same shorter text 3 times: accepted next time)"]
+  W -- whole --> K{"word in the section's table? first cell, bold or not"}
   K -- yes --> N2["Already in that table"]
-  K -- no --> I["insert(): make the section if new, add the row after the table's last row"]
-  I --> B["write(): copy the file to backups/, keep the newest 30"]
-  B --> CAS{"file still equals what read() got?"}
-  CAS -- "changed: retry, 3 attempts" --> R
-  CAS -- same --> TR["write .Vocabulary.md.saving, rename() over the file"]
-  TR --> OK["Saved to that table"]
-  CAS -- "changed 3 times" --> N3["Not saved: kept changing"]
+  K -- no --> I["insert(): section at the end if new; the row after the table's last row, in its header's columns"]
+  I --> CAS{"file still equals what read() got?"}
+  CAS -- "changed, or could not write: retry, 3 attempts" --> R
+  CAS -- same --> TR["write .file.saving with the file's permissions, rename() over it"]
+  TR --> OK["Saved: the size remembered, the version copied to backups/ (newest 30)"]
 ```
 
-- A missing file is created with its title line, unless `requireText` or `minBytes` is set: then the store expects an
-  existing note and refuses to start a new one.
-- The backup is taken before the compare, so even a lost race leaves a copy; `store.backups: 0` turns backups off.
+- The size after each save is kept in `sizes/` in the support folder, one small file per vocabulary file, so a read that
+  comes back much shorter (half a file, while a sync client writes it) is skipped. The same short text for over a
+  second means a file shortened on purpose: its size is remembered, and the next save accepts it.
+- `insert()` keeps the file's line endings (LF or CRLF), finds the section by its heading (`## Dutch`, any case, or the
+  code), and writes the row in the table's own header order ("Meaning", "Added", a language's name or code); a value the
+  table has no column for is named in the status line. A symlinked note is written where it points.
+- The first save also copies the file as it was (`…-before.md`), so the version before Lookup Word touched it is kept.
 - The compare-and-swap is "re-read, compare, rename": a writer between the compare and the `rename()` can still lose,
-  but no reader ever sees a half-written file, and the `saves` queue keeps the app's own saves in order.
+  but no reader ever sees a half-written file, and the `saves` queue keeps the app's own saves in order (a `--save` from
+  the command line runs in its own process and relies on the compare).
 - `JSONStore` is simpler: decode the list, append, one atomic write; no backups or compare.
 
 ## 5. Settings and restart
@@ -153,19 +160,20 @@ flowchart TD
   SW -->|"Save and Restart: save() merges its keys"| CF
   SW --> RS["restart()"]
   P -->|"menu: Restart to Apply Settings"| RS
-  RS -->|"under launchd: exit(1)"| LD["launchd restarts it after the failure exit"]
-  LD --> P
-  RS -->|"started otherwise: sh 'sleep 1; open -n', exit(0)"| P
+  RS -->|"launchd's child: launchctl kickstart -k"| P
+  RS -->|"started otherwise: open a new copy, then exit(0)"| P
   P -->|"Quit: exit(0)"| STOP["stopped until the next login"]
 ```
 
 - `config` is read once per process. Each key decodes on its own (`lenient()`): a bad value keeps its default and adds a
   warning to the card's status line; a file that is not JSON sets `configBroken`, and the store becomes `BrokenStore`,
   which saves nothing until it is fixed. A missing file is written out with the defaults.
-- `SettingsModel.save()` and `setSetting()` rewrite only their own keys and keep every other key, so the advanced store
-  options ("Edit Advanced Settings…" opens the file) survive.
-- `restart()` exits with status 1 when `XPC_SERVICE_NAME` names the launch agent: `KeepAlive` with `SuccessfulExit`
-  false makes launchd start a new process, which reads the new settings. Quit exits 0, so launchd leaves it stopped.
+- `SettingsModel.save()` and `setSetting()` rewrite only their own keys and keep every other key. A file that isn't
+  JSON: `setSetting()` leaves it alone; `SettingsModel.save()` keeps a copy as `config.broken.json`, then writes.
+- `restart()` asks launchd to restart the job (`launchctl kickstart -k`) when launchd started it (parent pid 1), falling
+  back to a failure exit, which `KeepAlive` with `SuccessfulExit` false also restarts; launchd waits until a job has run
+  10 seconds. Started any other way, it opens a new copy of itself before quitting. Quit exits 0, so launchd leaves it
+  stopped.
 - `install.sh` builds a release binary, assembles and signs the app (its own certificate if there is one, else ad hoc,
   which resets the permissions), writes `~/Library/LaunchAgents/io.github.gregth.lookup-word.plist` with stderr to
   `~/Library/Logs/Lookup Word/lookup.log`, then `bootout` and `bootstrap` reload it.

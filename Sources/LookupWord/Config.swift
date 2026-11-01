@@ -2,26 +2,10 @@
 // default, so a config file from an older version still loads.
 import Foundation
 
-struct SectionConfig: Codable {
-    var heading: String?  // the ## heading of this language's table; "" is the table at the top, before any ## heading
-    var columns: [String]?  // after Word: "meaning" or a language code, e.g. ["meaning", "el"]
-
-    init(from d: Decoder) throws {
-        let c = try d.container(keyedBy: CodingKeys.self)
-        heading = c.lenient(String.self, .heading, in: "store.sections")
-        columns = c.lenient([String].self, .columns, in: "store.sections")
-    }
-}
-
 struct StoreConfig: Codable {
     var type = "markdown"  // markdown | json | none
     var path: String?  // default: Vocabulary.md or vocabulary.json in the support folder
-    var sections: [String: SectionConfig]?  // markdown: per language; default "## <Language>" with every other language
-    var insertBefore: String?  // markdown: a new section goes before this line (e.g. "## Corrections log"); else at the end
-    var requirePrefix: String?  // markdown: a read counts as whole only when the file starts with this…
-    var requireText: [String]?  // …holds each of these…
-    var minBytes: Int?  // …and is at least this many bytes; otherwise nothing is written (another app may be mid-save)
-    var backups: Int?  // markdown: how many copies of the file to keep before writes (default 30; 0 for none)
+    var saveDate = false  // also save when each word was looked up (an Added column, an "added" field)
 
     init() {}
     init(from d: Decoder) throws {
@@ -29,12 +13,7 @@ struct StoreConfig: Codable {
         type = c.lenient(String.self, .type, in: "store")?.lowercased() ?? type
         if !["markdown", "json", "none"].contains(type) { warn("store.type \"\(type)\" is not markdown, json or none: using markdown"); type = "markdown" }
         path = c.lenient(String.self, .path, in: "store")
-        sections = c.lenient([String: SectionConfig].self, .sections, in: "store")
-        insertBefore = c.lenient(String.self, .insertBefore, in: "store")
-        requirePrefix = c.lenient(String.self, .requirePrefix, in: "store")
-        requireText = c.lenient([String].self, .requireText, in: "store")
-        minBytes = c.lenient(Int.self, .minBytes, in: "store")
-        backups = c.lenient(Int.self, .backups, in: "store")
+        saveDate = c.lenient(Bool.self, .saveDate, in: "store") ?? saveDate
     }
 }
 

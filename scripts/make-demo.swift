@@ -75,7 +75,7 @@ func ring(at p: NSPoint, _ t: CGFloat) {  // t 0…1: grows and fades
 
 // One frame: the window with its sentence and the steps, and optionally the pointer, the highlight and the card.
 func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect: NSRect, key: Bool? = nil, ringAt: CGFloat? = nil,
-           selected: Bool = false) -> CGImage {
+           selected: CGFloat = 0) -> CGImage {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(W), pixelsHigh: Int(H), bitsPerSample: 8, samplesPerPixel: 4,
                                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     let ctx = NSGraphicsContext(bitmapImageRep: rep)!
@@ -89,9 +89,9 @@ func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect
     NSAttributedString(string: sc.language, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium),
                                                          .foregroundColor: NSColor(white: 1, alpha: 0.5)])
         .draw(at: NSPoint(x: window.midX - 30, y: window.minY + 11))
-    if selected {  // the app's own selection, behind the word
+    if selected > 0 {  // the app's own selection behind the word, as far as the drag has reached (0…1)
         NSColor(red: 0.16, green: 0.38, blue: 0.86, alpha: 0.85).setFill()
-        NSRect(x: wordRect.minX - 1, y: wordRect.minY + 1, width: wordRect.width + 2, height: wordRect.height - 2).fill()
+        NSRect(x: wordRect.minX - 1, y: wordRect.minY + 1, width: (wordRect.width + 2) * selected, height: wordRect.height - 2).fill()
     } else if card != nil {
         NSColor.systemYellow.withAlphaComponent(0.45).setFill()
         NSBezierPath(roundedRect: wordRect.insetBy(dx: -2, dy: 0), xRadius: 3, yRadius: 3).fill()
@@ -155,7 +155,17 @@ for sc in scenes {
     at = NSPoint(x: target.x, y: 520)
 }
 
-// stills of the two ways to pick a word
+// a GIF of each way to pick a word, cropped to the card and the sentence: selecting the word by dragging across it, and
+// pointing at it with screen reading on; each with the double-tap and the card
+func gif(_ name: String, _ frames: [(CGImage, Double)], crop: CGRect) {
+    let url = docs.appendingPathComponent(name)
+    let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.gif.identifier as CFString, frames.count, nil)!
+    CGImageDestinationSetProperties(dest, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
+    for (img, delay) in frames {
+        CGImageDestinationAddImage(dest, img.cropping(to: crop)!, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: delay]] as CFDictionary)
+    }
+    print(CGImageDestinationFinalize(dest) ? "wrote docs/\(name), \(frames.count) frames" : "failed \(name)")
+}
 do {
     let sc = scenes[0]
     let card = NSImage(contentsOf: docs.appendingPathComponent(sc.card))!
@@ -164,19 +174,41 @@ do {
     let range = (sc.sentence as NSString).range(of: sc.word)
     let x0 = textOrigin.x + ((sc.sentence as NSString).substring(to: range.location) as NSString).size(withAttributes: attrs).width
     let size = (sc.word as NSString).size(withAttributes: attrs)
-    let wordRect = NSRect(x: x0, y: textOrigin.y, width: size.width, height: size.height)
-    let on = NSPoint(x: wordRect.midX - 2, y: wordRect.midY - 4)
-    // no caption (the README says it) and no steps; cropped to the card and the sentence
+    let w = NSRect(x: x0, y: textOrigin.y, width: size.width, height: size.height)
     let crop = CGRect(x: 20, y: 110, width: W - 40, height: 400)
-    let stills: [(String, CGImage)] = [
-        ("mode-selection.png", frame(sc, pointerAt: NSPoint(x: wordRect.maxX + 160, y: wordRect.maxY + 20), step: 0, card: card, wordRect: wordRect, selected: true)),
-        ("mode-screen.png", frame(sc, pointerAt: on, step: 0, card: card, wordRect: wordRect)),
-    ].map { ($0.0, $0.1.cropping(to: crop)!) }
-    for (name, img) in stills {
-        let rep = NSBitmapImageRep(cgImage: img)
-        try! rep.representation(using: .png, properties: [:])!.write(to: docs.appendingPathComponent(name))
-        print("wrote docs/\(name)")
+    let start = NSPoint(x: 320, y: 500)
+    func glide(_ from: NSPoint, _ to: NSPoint, selected: CGFloat = 0) -> [(CGImage, Double)] {
+        (1...10).map { i in
+            let t = 1 - pow(1 - Double(i) / 10, 3)
+            return (frame(sc, pointerAt: NSPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t), step: 0, card: nil, wordRect: w, selected: selected), 0.04)
+        }
     }
+    func tap(at p: NSPoint, selected: CGFloat) -> [(CGImage, Double)] {
+        var out = [(frame(sc, pointerAt: p, step: 0, card: nil, wordRect: w, key: false, selected: selected), 0.3)]
+        for _ in 0..<2 {
+            out.append((frame(sc, pointerAt: p, step: 0, card: nil, wordRect: w, key: true, ringAt: 0, selected: selected), 0.08))
+            out.append((frame(sc, pointerAt: p, step: 0, card: nil, wordRect: w, key: true, ringAt: 0.35, selected: selected), 0.06))
+            out.append((frame(sc, pointerAt: p, step: 0, card: nil, wordRect: w, key: false, ringAt: 0.7, selected: selected), 0.06))
+            out.append((frame(sc, pointerAt: p, step: 0, card: nil, wordRect: w, key: false, selected: selected), 0.08))
+        }
+        return out
+    }
+    // selection: to the word's start, drag across it, double-tap, the card
+    let left = NSPoint(x: w.minX, y: w.midY - 4), right = NSPoint(x: w.maxX, y: w.midY - 4)
+    var sel = [(frame(sc, pointerAt: start, step: 0, card: nil, wordRect: w), 0.6)] + glide(start, left)
+    sel += (1...10).map { i in
+        let f = CGFloat(i) / 10
+        return (frame(sc, pointerAt: NSPoint(x: left.x + (right.x - left.x) * f, y: left.y), step: 0, card: nil, wordRect: w, selected: f), 0.05)
+    }
+    sel += tap(at: right, selected: 1)
+    sel.append((frame(sc, pointerAt: right, step: 0, card: card, wordRect: w, selected: 1), 3))
+    gif("mode-selection.gif", sel, crop: crop)
+    // screen reading: point at the word, nothing selected, double-tap, the word highlighted and the card
+    let on = NSPoint(x: w.midX - 2, y: w.midY - 4)
+    var scr = [(frame(sc, pointerAt: start, step: 0, card: nil, wordRect: w), 0.6)] + glide(start, on)
+    scr += tap(at: on, selected: 0)
+    scr.append((frame(sc, pointerAt: on, step: 0, card: card, wordRect: w), 3))
+    gif("mode-screen.gif", scr, crop: crop)
 }
 
 let out = docs.appendingPathComponent("demo.gif")

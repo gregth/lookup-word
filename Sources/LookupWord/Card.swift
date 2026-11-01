@@ -13,10 +13,19 @@ func run(_ s: String, _ font: NSFont, _ color: NSColor = .labelColor) -> NSAttri
     NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
 }
 
-// a 🔈 that says the text in that language
-func speaker(_ text: String, _ lang: String) -> NSAttributedString {
+// a speaker button that says the text in that language: the system's speaker symbol, in the accent colour
+func speaker(_ text: String, _ lang: String, size: CGFloat = 14) -> NSAttributedString {
     var u = URLComponents(); u.scheme = "say"; u.host = lang; u.queryItems = [URLQueryItem(name: "t", value: text)]
-    return NSAttributedString(string: " 🔈", attributes: [.link: u.url!, .font: NSFont.systemFont(ofSize: 13), .cursor: NSCursor.pointingHand])
+    let out = NSMutableAttributedString(string: "  ")
+    let config = NSImage.SymbolConfiguration(pointSize: size, weight: .medium).applying(.init(paletteColors: [.controlAccentColor]))
+    if let image = NSImage(systemSymbolName: "speaker.wave.2.fill", accessibilityDescription: "Say it")?.withSymbolConfiguration(config) {
+        let a = NSTextAttachment()
+        a.image = image
+        a.bounds = NSRect(x: 0, y: -2, width: image.size.width, height: image.size.height)
+        out.append(NSAttributedString(attachment: a))
+    } else { out.append(NSAttributedString(string: "🔈")) }
+    out.addAttributes([.link: u.url!, .cursor: NSCursor.pointingHand], range: NSRange(location: 2, length: out.length - 2))
+    return out
 }
 
 // One dictionary's plain text, laid out as Look Up shows it: each sense, example (▸), sub-sense (•) and section

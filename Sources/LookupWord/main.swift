@@ -117,12 +117,12 @@ final class Menu: NSObject {
     @objc func settings() { showSettings() }
     @objc func restartNow() { restart() }
 
-    // the icon goes, and stays gone (menuBar false in the settings); opening the app again brings it back
+    // the icon goes, and stays gone (menuBar false in the settings); opening the app again shows the settings
     @objc func hide() {
         setSetting("menuBar", false)
         NSStatusBar.system.removeStatusItem(item)
         menu = nil
-        present(message("Menu bar icon hidden. To bring it back, open Lookup Word again from your Applications folder."), at: nil)
+        present(message("Menu bar icon hidden. For the settings (and to show the icon again), open Lookup Word from your Applications folder."), at: nil)
         monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { _ in close() }
         timer = Timer.scheduledTimer(withTimeInterval: 8, repeats: false) { _ in close() }
     }
@@ -317,11 +317,10 @@ NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged, .keyDown], handler: 
 _ = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { onKey($0); return $0 }
 var menu = config.menuBar ? Menu() : nil
 
-// Opening the app while it runs (double-clicking it in Applications, Spotlight) shows the menu bar icon again.
+// Opening the app while it runs (double-clicking it in Applications, Spotlight) shows its settings.
 final class Delegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if menu == nil { menu = Menu(); setSetting("menuBar", true) }
-        showSettings()
+        showSettings()  // the way in when the icon is hidden; the icon itself stays as the settings say
         return false
     }
 }

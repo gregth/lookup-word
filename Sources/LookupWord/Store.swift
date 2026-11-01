@@ -11,7 +11,7 @@ protocol VocabularyStore {
 func makeStore(_ c: StoreConfig) -> VocabularyStore {
     if configBroken { return BrokenStore() }
     switch c.type {
-    case "json": return JSONStore(url: URL(fileURLWithPath: expand(c.path ?? Paths.support.appendingPathComponent("vocabulary.json").path)))
+    case "json": return JSONStore(saveDate: c.saveDate, url: URL(fileURLWithPath: expand(c.path ?? Paths.support.appendingPathComponent("vocabulary.json").path)))
     case "none": return NoStore()
     default: return MarkdownStore(c)
     }
@@ -30,9 +30,9 @@ struct BrokenStore: VocabularyStore {
 // --- JSON: [{word, language, meaning, translations: {code: words}, added}] ----------------------------------------
 
 struct JSONStore: VocabularyStore {
-    struct Word: Codable { var word, language, meaning: String; var translations: [String: String]; var added: String }
-    let file: URL
-    init(url: URL) { file = url }
+    struct Word: Codable { var word, language, meaning: String; var translations: [String: String]; var added: String? }
+    let saveDate: Bool, file: URL
+    init(saveDate: Bool, url: URL) { self.saveDate = saveDate; file = url }
     var url: URL? { file }
 
     func save(_ e: Entry) -> String {
@@ -42,9 +42,9 @@ struct JSONStore: VocabularyStore {
             list = l
         }
         if list.contains(where: { $0.language == e.lang && $0.word.lowercased() == e.word.lowercased() }) { return "Already in your vocabulary." }
-        let day = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withFullDate])
+        let when = saveDate ? ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime]) : nil
         list.append(Word(word: e.word, language: e.lang, meaning: e.meaning,
-                         translations: Dictionary(e.tr.filter { !$0.1.isEmpty }, uniquingKeysWith: { a, _ in a }), added: day))
+                         translations: Dictionary(e.tr.filter { !$0.1.isEmpty }, uniquingKeysWith: { a, _ in a }), added: when))
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         do {
@@ -55,141 +55,179 @@ struct JSONStore: VocabularyStore {
     }
 }
 
-// --- Markdown: | Word | <columns> | tables, one per language ---------------------------------------------------------
-// Safe against another program writing the same file (a notes app syncing it, an editor saving it): a save reads
-// until the file is whole (its prefix and required text, a minimum size), writes only if the file still holds what
-// it read, writes through a temporary file renamed over it, and first copies the file to backups/ in the support
-// folder. Each save changes one row (and makes that language's section, once); nothing else in the file changes.
+// --- Markdown: one "## Language" section per language, each a | Word | … | table -----------------------------------
+// The file is meant to be read and synced by other apps (a notes vault), so a save never writes over a read that may
+// be half of the file: it reads until the file is whole, writes only if the file still holds what it read, writes
+// through a temporary file renamed over it, and keeps the last 30 versions in backups/ in the support folder. Each save
+// adds one row (and, the first time, that language's section at the end); nothing else in the file changes.
 
 struct MarkdownStore: VocabularyStore {
-    let c: StoreConfig
-    let file: URL
+    let file: URL, saveDate: Bool
     init(_ c: StoreConfig) {
-        self.c = c
-        file = URL(fileURLWithPath: expand(c.path ?? Paths.support.appendingPathComponent("Vocabulary.md").path))
+        saveDate = c.saveDate
+        let path = c.path.map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 }
+        // a symlinked note is saved where it points, not replaced by a plain file
+        file = URL(fileURLWithPath: expand(path ?? Paths.support.appendingPathComponent("Vocabulary.md").path)).resolvingSymlinksInPath()
     }
     var url: URL? { file }
+    var name: String { file.lastPathComponent }
 
-    // this language's ## heading ("" for the table at the top) and its columns after Word
-    func heading(_ code: String) -> String { c.sections?[code]?.heading ?? pack(code)?.name ?? code }
+    // a new table's columns after Word: English's own meaning, then the other languages; another language's English
+    // first, then the rest
     func columns(_ code: String) -> [String] {
-        if let cols = c.sections?[code]?.columns, !cols.isEmpty { return cols }
-        return code == "en" ? ["meaning"] + others.map(\.code) : ["en"] + others.map(\.code).filter { $0 != code }
+        (code == "en" ? ["meaning"] + others.map(\.code) : ["en"] + others.map(\.code).filter { $0 != code }) + (saveDate ? ["added"] : [])
     }
-    func columnName(_ col: String) -> String { col == "meaning" ? "Meaning" : pack(col)?.name ?? col }
-    func place(_ code: String) -> String { heading(code).isEmpty ? "Vocabulary" : heading(code) }
-
-    // why a read is not the whole file, or nil when it is
-    func incomplete(_ text: String?) -> String? {
-        guard let text else { return "\(file.lastPathComponent) is not readable as UTF-8 text" }
-        if text.isEmpty { return "\(file.lastPathComponent) is empty (another app saving it?)" }
-        if let p = c.requirePrefix, !text.hasPrefix(p) { return "\(file.lastPathComponent) does not start with “\(p)” (another app saving it?)" }
-        if let missing = (c.requireText ?? []).first(where: { !text.contains($0) }) {
-            return "\(file.lastPathComponent) lacks “\(missing.trimmingCharacters(in: .whitespacesAndNewlines))” (another app saving it?)"
+    func columnName(_ col: String) -> String { col == "meaning" ? "Meaning" : col == "added" ? "Added" : pack(col)?.name ?? col }
+    // an existing table's column, by its header: "Meaning", a language's name or code; "" for one this app does not fill
+    func column(_ header: String) -> String {
+        let h = header.trimmingCharacters(in: .whitespaces).lowercased()
+        if h == "meaning" || h == "added" { return h }
+        return packs.first { $0.name.lowercased() == h || $0.code == h }?.code ?? ""
+    }
+    func heading(_ code: String) -> String { pack(code)?.name ?? code }
+    // a table row's cells, split at unescaped pipes, the empty pieces outside the outer pipes dropped
+    func cells(_ line: String) -> [String] {
+        var parts = line.components(separatedBy: "|").reduce(into: [String]()) { out, piece in
+            if let last = out.last, last.hasSuffix("\\") { out[out.count - 1] = last + "|" + piece } else { out.append(piece) }
         }
-        if let n = c.minBytes, text.utf8.count < n { return "\(file.lastPathComponent) is shorter than \(n) bytes (another app saving it?)" }
-        return nil
+        if parts.first?.trimmingCharacters(in: .whitespaces).isEmpty == true { parts.removeFirst() }
+        if parts.last?.trimmingCharacters(in: .whitespaces).isEmpty == true { parts.removeLast() }
+        return parts
     }
 
-    // the file's text, read again until it is whole (a writer elsewhere may hold it half-written for a moment); or
-    // why not, after a few tries
+    // The size of the file after the last save, so a read that is much shorter (half a file, while another app writes
+    // it) is caught: one small file per vocabulary file in the support folder, so two saves never overwrite each other's.
+    var sizeFile: URL {
+        let key = file.path.unicodeScalars.reduce(UInt64(5381)) { ($0 &* 33) &+ UInt64($1.value) }  // djb2: stable across runs
+        return Paths.support.appendingPathComponent("sizes/\(String(key, radix: 16)).txt")
+    }
+    func lastSize() -> Int? { (try? String(contentsOf: sizeFile, encoding: .utf8)).flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) } }
+    func remember(_ size: Int?) {
+        guard let size else { try? FileManager.default.removeItem(at: sizeFile); return }
+        try? FileManager.default.createDirectory(at: sizeFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? "\(size)\n".write(to: sizeFile, atomically: true, encoding: .utf8)
+    }
+
+    // the file's text, read again until it looks whole; or why not, after a few tries
     func read() -> (String?, String) {
         if !FileManager.default.fileExists(atPath: file.path) {
-            // a first save makes the file, unless the settings expect something in it already; an empty one is left alone
-            guard c.requireText == nil, c.minBytes == nil else { return (nil, "\(file.path) does not exist (check store.path in the settings)") }
+            // gone since a save: moved, renamed, or a sync client mid-swap; making a new one would split the words
+            if lastSize() != nil {
+                remember(nil)  // look the word up again to start a new file there
+                return (nil, "\(name) is no longer at \(file.deletingLastPathComponent().path). If you moved it, choose it again in Settings; to start a new one there, look the word up again")
+            }
             try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? ((c.requirePrefix ?? "# Vocabulary") + "\n").write(to: file, atomically: true, encoding: .utf8)
+            try? "# Vocabulary\n".write(to: file, atomically: true, encoding: .utf8)
         }
-        var why = ""
+        var why = "", reads: [String?] = []
         for i in 0..<5 {
             let text = try? String(contentsOf: file, encoding: .utf8)
-            guard let reason = incomplete(text) else { return (text, "") }
-            why = reason
+            if let text, !text.isEmpty, text.utf8.count * 2 >= (lastSize() ?? 0) { return (text, "") }
+            reads.append(text)
+            why = text == nil ? "\(name) is not readable as text" : text!.isEmpty ? "\(name) is empty (another app saving it?)"
+                : "\(name) is much shorter than after the last save (another app saving it?)"
             if i < 4 { Thread.sleep(forTimeInterval: 0.3) }
+        }
+        // the same short text for over a second: shortened on purpose, most likely (another app's half-written file
+        // keeps changing); the next save accepts it
+        if let last = reads.last, let text = last, !text.isEmpty, reads.suffix(3).allSatisfy({ $0 == last }) {
+            remember(text.utf8.count)
+            why += ". If you shortened it yourself, look the word up again"
         }
         return (nil, why)
     }
 
-    // the new text in place of the old, only if the file still holds exactly the old: a backup first, then a
-    // temporary file renamed over it, so no reader ever sees half of it. False when the file changed meanwhile.
+    // the new text in place of the old, only if the file still holds exactly the old: through a temporary file renamed
+    // over it, so no reader ever sees half of it, with the file's permissions kept. Each saved version is copied to
+    // backups/ (the newest 30), and the first save also keeps the version it started from. False when the file
+    // changed meanwhile.
     func write(_ old: String, _ new: String) -> Bool {
-        let keep = c.backups ?? 30
-        if keep > 0 {
-            let dir = Paths.support.appendingPathComponent("backups")
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss-SSS"  // two saves in a second keep two
-            let stem = file.deletingPathExtension().lastPathComponent
-            try? FileManager.default.copyItem(at: file, to: dir.appendingPathComponent("\(stem)-\(f.string(from: Date())).md"))
-            let mine = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [])
-                .filter { $0.hasPrefix(stem + "-") && $0.hasSuffix(".md") }.sorted()
-            for stale in mine.dropLast(keep) { try? FileManager.default.removeItem(at: dir.appendingPathComponent(stale)) }
-        }
+        let fm = FileManager.default, dir = Paths.support.appendingPathComponent("backups")
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let stem = file.deletingPathExtension().lastPathComponent
+        let mine = { ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasPrefix(stem + "-") && $0.hasSuffix(".md") }.sorted() }
+        let stamp = { () -> String in let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss-SSS"; return f.string(from: Date()) }
+        if mine().isEmpty { try? fm.copyItem(at: file, to: dir.appendingPathComponent("\(stem)-\(stamp())-before.md")) }
         guard (try? String(contentsOf: file, encoding: .utf8)) == old else { return false }
-        let tmp = file.deletingLastPathComponent().appendingPathComponent(".\(file.lastPathComponent).saving")
+        let tmp = file.deletingLastPathComponent().appendingPathComponent(".\(name).saving")
         guard (try? new.write(to: tmp, atomically: false, encoding: .utf8)) != nil else { return false }
-        return rename(tmp.path, file.path) == 0
+        if let mode = (try? fm.attributesOfItem(atPath: file.path))?[.posixPermissions] {
+            try? fm.setAttributes([.posixPermissions: mode], ofItemAtPath: tmp.path)
+        }
+        guard rename(tmp.path, file.path) == 0 else { try? fm.removeItem(at: tmp); return false }
+        remember(new.utf8.count)
+        try? new.write(to: dir.appendingPathComponent("\(stem)-\(stamp()).md"), atomically: true, encoding: .utf8)
+        for stale in mine().dropLast(30) { try? fm.removeItem(at: dir.appendingPathComponent(stale)) }
+        return true
     }
 
-    // the line span of that language's table: the top one from the start to the first ## heading, the others from
-    // their heading to the next one; nil while that section does not exist
+    // the line span of that language's section, from its heading ("## Dutch", "## dutch", "##Dutch", "## nl") to the
+    // next ## heading; nil while it does not exist
     func section(_ lines: [String], _ code: String) -> Range<Int>? {
-        let heads = lines.indices.filter { lines[$0].hasPrefix("## ") }
-        let h = heading(code)
-        if h.isEmpty { return 0..<(heads.first ?? lines.count) }
-        guard let i = lines.firstIndex(of: "## \(h)") else { return nil }
-        return i..<(heads.first { $0 > i } ?? lines.count)
+        let names = [heading(code).lowercased(), code]
+        guard let i = lines.firstIndex(where: { line in
+            guard line.hasPrefix("##"), !line.hasPrefix("###") else { return false }
+            return names.contains(line.dropFirst(2).trimmingCharacters(in: .whitespaces).lowercased())
+        }) else { return nil }
+        return i..<(lines.indices.first { $0 > i && lines[$0].hasPrefix("## ") } ?? lines.count)
     }
 
-    // that table's words, lower-cased
-    func known(_ lines: [String], _ code: String) -> Set<String> {
-        guard let span = section(lines, code) else { return [] }
-        return Set(lines[span].compactMap { line in
-            line.range(of: #"^\|\s*\*\*[^*]+\*\*\s*\|"#, options: .regularExpression).map {
-                replacing(String(line[$0]), #"^\|\s*\*\*|\*\*\s*\|$"#, "").trimmingCharacters(in: .whitespaces).lowercased()
-            }
-        })
+    // the section's word table: its header line and its last row (the first run of | lines; a table further down the
+    // section is the user's own)
+    func table(_ lines: [String], _ span: Range<Int>) -> (header: Int, end: Int)? {
+        guard let header = span.first(where: { lines[$0].hasPrefix("|") }) else { return nil }
+        var end = header
+        while end + 1 < span.upperBound, lines[end + 1].hasPrefix("|") { end += 1 }
+        return (header, end)
+    }
+
+    // that table's words, lower-cased: each row's first cell, bold or not
+    func known(_ lines: [String], _ t: (header: Int, end: Int)) -> Set<String> {
+        guard t.end > t.header else { return [] }
+        return Set(lines[(t.header + 1)...t.end].compactMap { line in
+            cells(line).first.map { $0.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "*")).lowercased() }
+        }.filter { !$0.isEmpty && !$0.allSatisfy { "-: ".contains($0) } })
     }
 
     func save(_ e: Entry) -> String {
         guard !e.word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "Not saved: no word." }
         for _ in 0..<3 {  // again when another program changed the file between our read and our write
             let (text, why) = read()
-            guard let old = text else { return "Not saved: \(why)." + (why.contains("another app") ? " Try again in a moment." : "") }
+            guard let old = text else { return "Not saved: \(why)." }
             switch insert(old, e) {
             case .status(let s): return s
-            case .text(let new): if write(old, new) { return "Saved to \(place(e.lang))." }
+            case .text(let new, let note): if write(old, new) { return "Saved to \(heading(e.lang))." + note }
             }
         }
-        return "Not saved: \(file.lastPathComponent) kept changing. Try again."
+        return "Not saved: \(name) kept changing, or could not be written. Try again."
     }
 
-    enum Change { case status(String), text(String) }
+    enum Change { case status(String), text(String, String) }
 
-    // the text with the word's row in its table; or a status line when there is nothing to write
+    // the text with the word's row in its language's table; or a status line when there is nothing to write
     func insert(_ text: String, _ e: Entry) -> Change {
-        var lines = text.components(separatedBy: "\n")
-        if known(lines, e.lang).contains(e.word.lowercased()) { return .status("Already in \(place(e.lang)).") }
-        let cols = columns(e.lang)
-        if section(lines, e.lang) == nil {  // the first word in that language makes its section, before insertBefore
-            let at = c.insertBefore.flatMap { b in lines.firstIndex { $0.hasPrefix(b) } } ?? lines.count
-            let name = pack(e.lang)?.name ?? e.lang, names = cols.map(columnName)
-            let rest = names.dropFirst().joined(separator: " and the ")
-            let intro = cols.first == "meaning" ? "with their meaning" : "with their \(names.first ?? "") meaning"
-            lines.insert(contentsOf: ["## \(heading(e.lang))", "", "\(name) words looked up, \(intro)\(rest.isEmpty ? "" : " and the \(rest)").", "",
-                                      "| Word | " + names.joined(separator: " | ") + " |", "|" + String(repeating: " --- |", count: cols.count + 1), ""], at: at)
+        let eol = text.contains("\r\n") ? "\r\n" : "\n"  // the file's own line endings, kept
+        var lines = text.components(separatedBy: "\n").map { $0.hasSuffix("\r") ? String($0.dropLast()) : $0 }
+        if section(lines, e.lang) == nil {  // the first word in a language: its section, at the end of the file
+            let names = columns(e.lang).map(columnName)
+            while lines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true { lines.removeLast() }
+            lines += ["", "## \(heading(e.lang))", "", "| Word | " + names.joined(separator: " | ") + " |",
+                      "|" + String(repeating: " --- |", count: names.count + 1), ""]
         }
-        if heading(e.lang).isEmpty, let span = section(lines, e.lang), !span.contains(where: { lines[$0].hasPrefix("|") }) {
-            // the top table, the first time: after the file's title line, when it has one
-            let at = lines.first.map { $0.hasPrefix("# ") } == true ? 1 : 0
-            let names = cols.map(columnName)
-            lines.insert(contentsOf: ["", "| Word | " + names.joined(separator: " | ") + " |", "|" + String(repeating: " --- |", count: cols.count + 1)], at: at)
-        }
-        guard let span = section(lines, e.lang), let end = span.last(where: { lines[$0].hasPrefix("|") }) else {
-            return .status("Not saved: no word table for \(place(e.lang)) in \(file.lastPathComponent).")
-        }
+        let span = section(lines, e.lang)!
+        guard let t = table(lines, span) else { return .status("Not saved: the \(heading(e.lang)) section of \(name) has no table.") }
+        if known(lines, t).contains(e.word.lowercased()) { return .status("Already in \(heading(e.lang)).") }
+        // the row follows the table's own header, so a table made before a language was added still lines up
+        let cols = cells(lines[t.header]).dropFirst().map { column($0) }
         let cell = { (s: String) in replacing(s, #"\s+"#, " ").replacingOccurrences(of: "|", with: "/").trimmingCharacters(in: .whitespaces) }
-        lines.insert("| **\(cell(e.word))** | " + cols.map { cell(e.value($0)) }.joined(separator: " | ") + " |", at: end + 1)
-        return .text(lines.joined(separator: "\n"))
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm"
+        let value = { (col: String) in col.isEmpty ? "" : col == "added" ? f.string(from: Date()) : cell(e.value(col)) }
+        lines.insert("| **\(cell(e.word))** | " + cols.map(value).joined(separator: " | ") + " |", at: t.end + 1)
+        // a value the table has no column for: say so, rather than drop it silently
+        let missing = e.tr.filter { !$0.1.isEmpty && !cols.contains($0.0) }.compactMap { pack($0.0)?.name }
+            + (saveDate && !cols.contains("added") ? ["Added"] : [])
+        let note = missing.isEmpty ? "" : " Its table has no \(missing.joined(separator: " or ")) column: add one to the header to keep those."
+        return .text(lines.joined(separator: eol), note)
     }
 }
 

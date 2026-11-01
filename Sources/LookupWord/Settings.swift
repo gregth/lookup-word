@@ -1,6 +1,5 @@
-// The settings window: the everyday settings as controls, saved to config.json (every other key in the file kept),
-// then a restart to apply them. The Markdown store's finer options (sections, insertBefore, the safety checks) stay
-// in the file, a button away.
+// The settings window: every setting as a control, saved to config.json (any other key in the file kept), then a
+// restart to apply them.
 import AppKit
 import SwiftUI
 
@@ -14,10 +13,11 @@ final class SettingsModel: ObservableObject {
     @Published var closeAfter: Double
     @Published var storeType: String
     @Published var storePath: String
+    @Published var saveDate: Bool
     let available: [Language]
-    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var screenReading, menuBar: Bool; var closeAfter: Double; var storeType, storePath: String }
-    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, screenReading: screenReading, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath) }
-    var saved = Snapshot(languages: [], hotkey: "", screenReading: false, menuBar: false, closeAfter: 0, storeType: "", storePath: "")
+    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var screenReading, menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool }
+    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, screenReading: screenReading, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate) }
+    var saved = Snapshot(languages: [], hotkey: "", screenReading: false, menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false)
 
     init() {
         // what the file says now (it may have changed since launch), falling back to the settings in force
@@ -29,6 +29,7 @@ final class SettingsModel: ObservableObject {
         closeAfter = file.closeAfter
         storeType = file.store.type
         storePath = file.store.path ?? ""
+        saveDate = file.store.saveDate
         available = availablePacks.compactMap(loadPack).map { p in
             Language(code: p.code, name: p.name, flag: p.flag ?? "", missing: [p.monolingual, p.bilingual].compactMap { $0 }.filter { dictionaries[$0] == nil })
         }.sorted { ($0.code == "en" ? "" : $0.name) < ($1.code == "en" ? "" : $1.name) }
@@ -38,9 +39,13 @@ final class SettingsModel: ObservableObject {
     var changed: Bool { saved != snapshot }
     var defaultPath: String { Paths.support.appendingPathComponent(storeType == "json" ? "vocabulary.json" : "Vocabulary.md").path }
 
-    // into config.json: these keys only; the store's other keys (sections, insertBefore…) and unknown ones stay
+    // into config.json: these keys only; any other key stays
     func save() {
-        var dict = ((try? Data(contentsOf: Paths.config)).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+        let data = try? Data(contentsOf: Paths.config)
+        var dict = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+        if let data, !data.isEmpty, dict.isEmpty {  // not JSON: kept aside, not lost, before the window's settings replace it
+            try? data.write(to: Paths.support.appendingPathComponent("config.broken.json"))
+        }
         let order = available.map(\.code).filter { languages.contains($0) }
         dict["languages"] = ["en"] + order.filter { $0 != "en" }
         dict["hotkey"] = hotkey
@@ -51,6 +56,7 @@ final class SettingsModel: ObservableObject {
         store["type"] = storeType
         let path = storePath.trimmingCharacters(in: .whitespaces)
         store["path"] = path.isEmpty ? nil : path
+        store["saveDate"] = saveDate
         dict["store"] = store
         if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) {
             try? (data + Data("\n".utf8)).write(to: Paths.config, options: .atomic)
@@ -137,13 +143,12 @@ struct SettingsView: View {
                             TextField("File", text: $model.storePath, prompt: Text("\(model.storeType == "json" ? "vocabulary.json" : "Vocabulary.md") in Lookup Word's folder"))
                             Button("Choose…") { model.choosePath() }
                         }
+                        Toggle("Also save the date and time of each lookup", isOn: $model.saveDate)
                         HStack {
                             Button("Show in Finder") {
                                 let p = expand(model.storePath.isEmpty ? model.defaultPath : model.storePath)
                                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)])
                             }
-                            Button("Edit Advanced Settings…") { NSWorkspace.shared.open(Paths.config) }
-                                .help("Markdown sections, columns and safety checks, in config.json")
                         }
                     }
                 } header: { Text("Vocabulary") }

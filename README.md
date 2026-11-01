@@ -85,7 +85,7 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 
 ### Selection: always on
 
-![A selected word, and its card above it](docs/mode-selection.png)
+![Dragging across a word to select it, double-tapping ⌥, and its card](docs/mode-selection.gif)
 
 - Select a word in any app, then double-tap ⌥.
 - Needs **Accessibility**, to read the selection and to notice the shortcut.
@@ -93,7 +93,7 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 
 ### Screen reading: optional
 
-![The pointer over a word, which Lookup Word highlights, and its card above it](docs/mode-screen.png)
+![Pointing at a word with nothing selected, double-tapping ⌥, and the highlighted word with its card](docs/mode-screen.gif)
 
 - Point at a word, with nothing selected, then double-tap ⌥. Lookup Word reads the word off the screen and highlights it.
 - Also works where text can't be selected: images, video, canvas apps, remote desktops.
@@ -109,61 +109,49 @@ Menu bar icon → **Settings…**:
 
 ![The settings window: shortcut, screen reading, menu bar icon, card timeout, languages, and where words are saved](docs/settings.png)
 
-**Save and Restart** applies the changes. Everything is stored in
-`~/Library/Application Support/Lookup Word/config.json`, written with the defaults on first launch; **Edit Advanced
-Settings…** opens it for the options the window doesn't show (the Markdown store's sections and safety checks). After
-editing the file by hand, choose **Restart to Apply Settings** in the menu. Every key is optional.
+**Save and Restart** applies the changes. They are stored in `~/Library/Application Support/Lookup Word/config.json`,
+written with the defaults on first launch. After editing that file by hand, choose **Restart to Apply Settings** in
+the menu. Every key is optional.
 
 | Key | Default | What it does |
 |---|---|---|
 | `languages` | `["en", "nl", "el"]` | The language packs to use, from [packs/](packs/). English is the pivot and is always on. |
 | `hotkey` | `"option"` | The modifier to double-tap: `option`, `control`, `command` or `shift`. |
 | `screenReading` | `false` | Read the word under the pointer when nothing is selected. Needs **Screen Recording** permission. |
-| `menuBar` | `true` | Show the menu bar icon. **Hide Menu Bar Icon** in its menu sets this to `false`; open Lookup Word again from Applications to bring the icon back. |
+| `menuBar` | `true` | Show the menu bar icon. **Hide Menu Bar Icon** in its menu sets this to `false`. With the icon hidden, open Lookup Word again from Applications for its settings. |
 | `closeAfter` | `30` | Seconds before the card closes by itself; `0` keeps it open until a click or a key. |
 | `debug` | `false` | Save each screen reading as `capture.png` in the support folder and log its coordinates. |
-| `store` | Markdown | Where looked-up words go: see below. |
+| `store` | Markdown | `{"type": "markdown" \| "json" \| "none", "path": "…", "saveDate": false}`: where looked-up words go, see below. |
 
 ### Where words are saved
 
-- **Markdown (default):** `Vocabulary.md` in the support folder, one `## Language` section per language with a
-  `| Word | … |` table. Rows are only ever added, and the file is written safely (see below).
-- **JSON:** `{"store": {"type": "json"}}` saves a list of `{word, language, meaning, translations, added}`.
-- **Nowhere:** `{"store": {"type": "none"}}`.
+Saving is optional: in **Settings… → Save words to**, choose a Markdown file (the default), a JSON file, or nowhere.
 
-Markdown options:
+- **Markdown:** one `## English`, `## Dutch`… section per language, each a table. A language's section is added at the
+  end of the file the first time you look up a word in it; after that, each new word is one more row. Nothing else in
+  the file changes, so you can keep it in a notes vault (Obsidian, Logseq…) and write your own notes around the
+  tables. Here is [a file after nine lookups](docs/sample-vocabulary.md), as a notes app shows it:
 
-- `path`: the file, anywhere, for example a note in your vault.
-- `sections`: per language, the table's `heading` (`""` for a table at the top of the file, before any `##` heading)
-  and its `columns` after Word (`"meaning"` or a language code).
-- `insertBefore`: a new language section goes before the line that starts with this, instead of at the end.
-- `requirePrefix`, `requireText`, `minBytes`: Lookup Word writes only when the file it read starts with this, holds
-  each of these and is at least this long. This protects a file that another app (a sync client, an editor) may be
-  saving at that moment.
-- `backups`: how many copies to keep in `backups/` before writes (default 30).
+  ![A vocabulary file with English, Dutch and Greek tables: each word with its meaning or English, and its translations](docs/vocabulary.png)
 
-Lookup Word writes only when the file still holds what it read, through a temporary file renamed over it, so a
-reader never sees half a file.
+- **JSON:** a list of `{word, language, meaning, translations}`, for your own scripts.
+- **Also save the date and time** (off by default): an **Added** column in new tables, or an `added` field in JSON.
+  To add it to an existing table, add an `Added` column to its header: rows follow the table's own columns.
 
-Example: words saved into an existing note in a vault, English in the note's top table.
+A save never writes over a file another app (a sync client, an editor) is in the middle of saving. It skips a read
+that comes back empty, unreadable or much shorter than after the last save, writes only if the file still holds what
+it read, writes through a temporary file renamed over it, and keeps the last 30 saved versions in `backups/`.
 
-```json
-{
-  "languages": ["en", "nl", "el"],
-  "screenReading": true,
-  "store": {
-    "type": "markdown",
-    "path": "~/Notes/Vocabulary.md",
-    "requirePrefix": "# Vocabulary",
-    "insertBefore": "## Corrections log",
-    "sections": {
-      "en": { "heading": "", "columns": ["meaning", "el"] },
-      "nl": { "heading": "Dutch", "columns": ["en", "el"] },
-      "el": { "heading": "Greek", "columns": ["en", "nl"] }
-    }
-  }
-}
-```
+### Where things are
+
+| What | Where |
+|---|---|
+| The app | `~/Applications/Lookup Word.app` |
+| Settings | `~/Library/Application Support/Lookup Word/config.json` |
+| Your words (default) | `~/Library/Application Support/Lookup Word/Vocabulary.md` (or `vocabulary.json`), unless you choose a file |
+| Backups of the words file | `~/Library/Application Support/Lookup Word/backups/` |
+| Log | `~/Library/Logs/Lookup Word/lookup.log` |
+| Start at login | `~/Library/LaunchAgents/io.github.gregth.lookup-word.plist` |
 
 ## Languages
 
@@ -199,6 +187,13 @@ The command lists the available dictionaries and which ones each language still 
 
 [docs/DESIGN.md](docs/DESIGN.md) has diagrams of the parts, a lookup from end to end, translation through English,
 the vocabulary file's safe write, and how settings are applied.
+
+## Disclaimer
+
+Lookup Word is a personal project, shared as is, with no warranty and no support commitment. I'm not responsible for
+any loss or damage from using it, including lost or changed notes: keep your own backups of anything you point it at.
+It isn't affiliated with Apple or with any dictionary publisher. The dictionary content it shows comes from the
+dictionaries installed on your Mac and belongs to their publishers. The [licence](LICENSE) states the legal terms.
 
 ## Licence
 
