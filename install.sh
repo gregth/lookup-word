@@ -11,12 +11,17 @@
 # resets its permissions and walks you through granting them again.
 set -euo pipefail
 here=${0:A:h}
-label=io.github.gregth.lookup-word
+# LOOKUP_LABEL, LOOKUP_APP_DIR, LOOKUP_SUPPORT and LOOKUP_LOGS install a second, separate copy (scripts/test-install.sh)
+label=${LOOKUP_LABEL:-io.github.gregth.lookup-word}
 apps=${LOOKUP_APP_DIR:-$HOME/Applications}
 app="$apps/Lookup Word.app"
 plist=$HOME/Library/LaunchAgents/$label.plist
-logs="$HOME/Library/Logs/Lookup Word"
-config="$HOME/Library/Application Support/Lookup Word/config.json"
+logs=${LOOKUP_LOGS:-$HOME/Library/Logs/Lookup Word}
+config="${LOOKUP_SUPPORT:-$HOME/Library/Application Support/Lookup Word}/config.json"
+env="<key>LOOKUP_AGENT</key><string>1</string>"  # marks the launch agent's copy, for its restart; and a test copy's folders
+
+[[ -n ${LOOKUP_SUPPORT:-} ]] && env+="<key>LOOKUP_SUPPORT</key><string>$LOOKUP_SUPPORT</string>"
+[[ -n ${LOOKUP_LOGS:-} ]] && env+="<key>LOOKUP_LOGS</key><string>$LOOKUP_LOGS</string>"
 
 if ! command -v swift >/dev/null; then
   echo "Swift is missing: install Apple's Command Line Tools with  xcode-select --install  and run this again." >&2
@@ -27,7 +32,19 @@ echo "Building…"
 swift build -c release --package-path "$here"
 bin=$(swift build -c release --package-path "$here" --show-bin-path)/LookupWord
 
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$logs"
+# the running copy stopped first, so nothing runs from files being replaced; bootout returns before it is gone, and
+# loading it again before then fails ("Bootstrap failed: 5")
+uid=$(id -u)
+launchctl bootout gui/$uid/$label 2>/dev/null || true
+for _ in {1..50}; do launchctl print gui/$uid/$label >/dev/null 2>&1 || break; sleep 0.1; done
+if launchctl print gui/$uid/$label >/dev/null 2>&1; then
+  echo "The running Lookup Word did not stop; run ./install.sh again." >&2
+  exit 1
+fi
+
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$logs" "${plist:h}"
+# a new file, not the old one rewritten in place (macOS caches a running binary's signature by its file)
+rm -f "$app/Contents/MacOS/LookupWord"
 cp "$bin" "$app/Contents/MacOS/LookupWord"
 rm -rf "$app/Contents/Resources/packs"
 cp -R "$here/packs" "$app/Contents/Resources/packs"
@@ -50,9 +67,8 @@ EOF
 
 adhoc=0
 identity=${LOOKUP_SIGN_IDENTITY:-}
-if [[ -z $identity ]] && security find-identity -p codesigning | grep -q '"Lookup Word Signing"'; then
-  identity="Lookup Word Signing"
-fi
+ids=$(security find-identity -p codesigning 2>/dev/null || true)  # captured first: grep -q in a pipe can cut it short
+[[ -z $identity && $ids == *'"Lookup Word Signing"'* ]] && identity="Lookup Word Signing"
 if [[ -n $identity ]]; then
   codesign --force --sign "$identity" "$app"  # no -v: a self-signed certificate is listed as not valid, yet signs
 else
@@ -60,7 +76,7 @@ else
   adhoc=1
 fi
 
-# KeepAlive only after a failure: the menu's Quit stops it until the next login, its Restart brings it straight back
+# KeepAlive only after a failure: the menu's Quit stops it until the next login
 cat > "$plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -70,18 +86,14 @@ cat > "$plist" <<EOF
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>StandardErrorPath</key><string>$logs/lookup.log</string>
+  <key>EnvironmentVariables</key><dict>$env</dict>
 </dict></plist>
 EOF
 
-uid=$(id -u)
-launchctl bootout gui/$uid/$label 2>/dev/null || true
-# bootout returns before the old one is gone; loading it again before then fails ("Bootstrap failed: 5")
-for _ in {1..50}; do launchctl print gui/$uid/$label >/dev/null 2>&1 || break; sleep 0.1; done
+# registered with macOS's app registry, so tccutil (below, and when uninstalling) finds it by its identifier
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
 
-# screen reading is off by default; Screen Recording is only needed when the settings turn it on
-screen=0
-[[ -f $config ]] && grep -Eq '"screenReading"[[:space:]]*:[[:space:]]*true' "$config" && screen=1
-
+# An ad hoc build is a new app to macOS: the old permissions no longer apply, so they are cleared and granted again.
 if (( adhoc )); then
   tccutil reset Accessibility $label >/dev/null 2>&1 || true
   tccutil reset ScreenCapture $label >/dev/null 2>&1 || true
@@ -92,16 +104,17 @@ if (( adhoc )) && [[ -t 0 ]]; then
   open -R "$app"  # Finder shows the app, to drag into the lists or find with +
   open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
   read "?Accessibility: add Lookup Word (+, or drag it from Finder) and switch it on, then press Enter… "
-  if (( screen )); then
-    open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
-    read "?Screen & System Audio Recording: the same, then press Enter… "
-  fi
   launchctl kickstart -k gui/$uid/$label
 fi
 
 others=$(pgrep -fl 'LookupWord$' | grep -v "$app" || true)
 [[ -n $others ]] && echo "Note: another Lookup Word is running and will answer the same shortcut:\n$others"
 
-echo "Lookup Word is running: select a word and double-tap ⌥."
+if (( adhoc )) && [[ ! -t 0 ]]; then  # no one to walk through the permissions: say so, rather than claim it works
+  echo "Lookup Word is installed, but its permissions were cleared (an ad hoc build is a new app to macOS)." >&2
+  echo "Switch it on in System Settings → Privacy & Security → Accessibility, then choose Restart to Apply Settings in its menu." >&2
+else
+  echo "Lookup Word is running: select a word and double-tap ⌥."
+fi
 "$app/Contents/MacOS/LookupWord" --dictionaries
-echo "Settings: $config  (menu bar → Open Settings; Restart to apply)"
+echo "Settings: $config  (menu bar → Settings…)"

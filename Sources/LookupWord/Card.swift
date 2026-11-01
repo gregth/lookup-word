@@ -110,7 +110,16 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
     return out
 }
 
-func message(_ s: String) -> NSAttributedString { run(s, .systemFont(ofSize: 13)) }
+// a message for the card, with an optional button below it: a link the card handles (textView(_:clickedOnLink:at:))
+func message(_ s: String, action: (title: String, url: String)? = nil) -> NSAttributedString {
+    let m = NSMutableAttributedString(attributedString: run(s, .systemFont(ofSize: 13)))
+    if let action, let url = URL(string: action.url) {
+        m.append(run("\n\n", .systemFont(ofSize: 13)))
+        m.append(NSAttributedString(string: action.title, attributes: [.link: url, .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                                                                     .foregroundColor: NSColor.controlAccentColor, .cursor: NSCursor.pointingHand]))
+    }
+    return m
+}
 
 let voice = AVSpeechSynthesizer()
 func speak(_ text: String, _ lang: String) {
@@ -159,6 +168,14 @@ final class Card: NSViewController, NSTextViewDelegate {
         scroll.reflectScrolledClipView(scroll.contentView)
     }
     func textView(_ v: NSTextView, clickedOnLink link: Any, at i: Int) -> Bool {
+        if let u = link as? URL, u.scheme == "lookupword" {
+            switch (u.host ?? "") + u.path {
+            case "open/accessibility": NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+            case "open/screen-recording": NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+            default: return false
+            }
+            return true
+        }
         guard let u = link as? URL, u.scheme == "say",
               let t = URLComponents(url: u, resolvingAgainstBaseURL: false)?.queryItems?.first?.value else { return false }
         speak(t, u.host ?? "en")

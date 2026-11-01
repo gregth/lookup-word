@@ -49,29 +49,34 @@ func lookUp() {
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { _ in close() }
     if config.closeAfter > 0 { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
     if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
-        present(message("Allow Lookup Word in System Settings → Privacy & Security → Accessibility, then double-tap \(hotkey.symbol) again."), at: nil)
+        present(message("Lookup Word needs Accessibility permission to read the word you select and to notice the double-tap. Switch it on, then double-tap \(hotkey.symbol) again.", action: ("Open Accessibility Settings", "lookupword://open/accessibility")), at: nil)
     } else if let (word, rect, around) = selection() {
         show(word, rect, around, mine)
-    } else if !config.screenReading {
-        present(message("Select a word, then double-tap \(hotkey.symbol). To look up the word under the pointer without selecting it, turn on screen reading in the settings (\"screenReading\": true)."), at: nil)
     } else {
+        // nothing selected: the word under the pointer, read off the screen (macOS asks for Screen Recording the
+        // first time; without it, the card says how to allow it, or to select the word instead)
         present(message("Reading the screen…"), at: nil)
-        Task { @MainActor in
-            let found = await byOCR(mouse)
-            guard shown == mine, pop != nil else { return }
-            if let (r, rect) = found {
-                // the element's real text, when the app gives it, spells the word (a language the screen reading
-                // cannot read, and misreads in any language) and gives the language
-                if let text = textUnderPointer(mouse), let word = closest(r, in: text) {
-                    if word != r.word { log("  is \(word) in the text") }
-                    show(word, rect, text, mine)
-                } else { show(r.word, rect, r.around, mine) }
-            }
-            else if !CGPreflightScreenCaptureAccess() {
-                update(message("Allow Lookup Word in System Settings → Privacy & Security → Screen Recording, so it can read the word under the pointer, then double-tap \(hotkey.symbol) again."))
-            } else {
-                update(message("No word under the pointer. Select one, or point at it, then double-tap \(hotkey.symbol)."))
-            }
+        readPointer(mouse, mine)
+    }
+}
+
+// The word under the pointer, read off the screen, then looked up.
+func readPointer(_ mouse: NSPoint, _ mine: Int) {
+    Task { @MainActor in
+        let found = await byOCR(mouse)
+        guard shown == mine, pop != nil else { return }
+        if let (r, rect) = found {
+            // the element's real text, when the app gives it, spells the word (a language the screen reading
+            // cannot read, and misreads in any language) and gives the language
+            if let text = textUnderPointer(mouse), let word = closest(r, in: text) {
+                if word != r.word { log("  is \(word) in the text") }
+                show(word, rect, text, mine)
+            } else { show(r.word, rect, r.around, mine) }
+        }
+        else if !CGPreflightScreenCaptureAccess() {
+            update(message("To read the word under the pointer, Lookup Word needs Screen Recording permission: it captures a strip of the screen around the pointer only when you double-tap. Switch it on (macOS may ask to quit and reopen it), or select the word instead, then double-tap \(hotkey.symbol) again.", action: ("Open Screen Recording Settings", "lookupword://open/screen-recording")))
+        } else {
+            update(message("No word under the pointer. Select one, or point at it, then double-tap \(hotkey.symbol)."))
         }
     }
 }
@@ -106,7 +111,7 @@ final class Menu: NSObject {
         add(m, "Restart to Apply Settings", #selector(restartNow))
         add(m, "Hide Menu Bar Icon", #selector(hide))
         m.addItem(.separator())
-        add(m, "Uninstall Lookup Word…", #selector(uninstall))
+        if isInstalledApp { add(m, "Uninstall Lookup Word…", #selector(uninstall)) }  // never in a copy run from the build folder
         add(m, "Quit Lookup Word", #selector(quit))
         item.menu = m
     }
@@ -130,64 +135,83 @@ final class Menu: NSObject {
     // a clean exit: launchd's KeepAlive (SuccessfulExit false) leaves it stopped until the next login
     @objc func quit() { exit(0) }
 
-    // what uninstall.sh does: the launch agent, the app and its permissions go; the settings and the support folder's
-    // vocabulary only when asked, and a vocabulary file elsewhere (a note in a vault) never
+    // after a confirmation, uninstall() (below), then what it did, then the launch agent unloaded, which ends this too
     @objc func uninstall() {
         NSApp.activate(ignoringOtherApps: true)
         let a = NSAlert()
         a.messageText = "Uninstall Lookup Word?"
         a.informativeText = "This removes the app, stops it starting at login, and resets its permissions."
-            + (store.url.map { $0.path.hasPrefix(Paths.support.path) ? "" : "\n\nYour vocabulary at \($0.path) stays." } ?? "")
+            + (store.url.map { $0.path.hasPrefix(Paths.support.path + "/") ? "" : "\n\nYour vocabulary at \($0.path) stays." } ?? "")
         a.showsSuppressionButton = true
         a.suppressionButton?.title = "Also delete my settings and the vocabulary in Lookup Word's own folder"
         a.addButton(withTitle: "Uninstall")
         a.addButton(withTitle: "Cancel")
         a.buttons[0].hasDestructiveAction = true
         guard a.runModal() == .alertFirstButtonReturn else { return }
-        let fm = FileManager.default, label = Bundle.main.bundleIdentifier ?? "io.github.gregth.lookup-word"
-        let home = fm.homeDirectoryForCurrentUser
-        var removed: [String] = [], failed: [String] = []
-        // each removal, reported: what it removed, or why not (a file already gone counts as removed)
-        func remove(_ url: URL, _ what: String) {
-            guard fm.fileExists(atPath: url.path) else { removed.append(what); return }
-            do { try fm.removeItem(at: url); removed.append(what) } catch { failed.append("\(what): \(error.localizedDescription)") }
-        }
-        remove(home.appendingPathComponent("Library/LaunchAgents/\(label).plist"), "starting at login")
-        let purge = a.suppressionButton?.state == .on
-        if purge {
-            remove(Paths.support, "your settings and Lookup Word's own folder")
-            remove(home.appendingPathComponent("Library/Logs/Lookup Word"), "its logs")
-        }
-        if Bundle.main.bundlePath.hasSuffix(".app") { remove(Bundle.main.bundleURL, "the app") }
-        // the permissions now, while this process lives: launchd ends every process of the job when it exits, so a
-        // helper left to do it afterwards is killed first (the permissions survived an uninstall that way)
-        for service in ["Accessibility", "ScreenCapture"] {
-            let t = Process()
-            t.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
-            t.arguments = ["reset", service, label]
-            if (try? t.run()) != nil { t.waitUntilExit() }
-            if t.terminationStatus != 0 { failed.append("the \(service == "ScreenCapture" ? "Screen Recording" : service) permission") }
-        }
-        var kept: [String] = []
-        if !purge { kept.append("Your settings stay in \(Paths.support.path).") }
-        if let u = store.url, !(purge && u.path.hasPrefix(Paths.support.path)) { kept.append("Your vocabulary stays at \(u.path).") }
-
+        let r = uninstallApp(purge: a.suppressionButton?.state == .on)
         let done = NSAlert()
-        done.messageText = failed.isEmpty ? "Lookup Word is uninstalled" : "Lookup Word is partly uninstalled"
-        if !failed.contains(where: { $0.hasSuffix("permission") }) { removed.append("its permissions") }
-        done.informativeText = (["Removed: " + removed.joined(separator: ", ") + "."]
-            + (failed.isEmpty ? [] : ["Could not remove: " + failed.joined(separator: "; ")])
-            + kept + ["To install it again, run install.sh from its folder."]).joined(separator: "\n\n")
-        done.alertStyle = failed.isEmpty ? .informational : .warning
+        done.messageText = r.failed.isEmpty ? "Lookup Word is uninstalled" : "Lookup Word is partly uninstalled"
+        done.informativeText = r.report
+        done.alertStyle = r.failed.isEmpty ? .informational : .warning
         done.addButton(withTitle: "OK")
         done.runModal()
-        // the launch agent last: unloading it ends this process too
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        p.arguments = ["bootout", "gui/\(getuid())/\(label)"]
-        if (try? p.run()) != nil { p.waitUntilExit() }
+        unloadAgent()
         exit(0)
     }
+}
+
+// What uninstall.sh does, from the app (the menu, or `LookupWord --uninstall [--purge]`): the launch agent's file, the
+// app and its permissions go; the settings and the support folder's vocabulary only with purge; a vocabulary file
+// elsewhere (a note in a vault) never. The permissions are reset here, while this process lives: launchd ends every
+// process of the job when it exits, so a helper left to do it afterwards is killed first.
+struct Uninstalled { var removed: [String], failed: [String], kept: [String]
+    var report: String {
+        (["Removed: " + removed.joined(separator: ", ") + "."] + (failed.isEmpty ? [] : ["Could not remove: " + failed.joined(separator: "; ")])
+            + kept + ["To install it again, run install.sh from its folder."]).joined(separator: "\n\n")
+    }
+}
+// An installed app knows its own identifier; a copy run from the build folder has none, and must never guess one (it
+// would act on another copy's launch agent, permissions and folders).
+var isInstalledApp: Bool { Bundle.main.bundleIdentifier != nil && Bundle.main.bundlePath.hasSuffix(".app") }
+var agentLabel: String { Bundle.main.bundleIdentifier ?? "" }
+func uninstallApp(purge: Bool) -> Uninstalled {
+    let fm = FileManager.default, home = fm.homeDirectoryForCurrentUser
+    var r = Uninstalled(removed: [], failed: [], kept: [])
+    guard isInstalledApp else { r.failed.append("nothing: this copy is not an installed app"); return r }
+    // each removal, reported: what it removed, or why not (a file already gone counts as removed)
+    func remove(_ url: URL, _ what: String) {
+        guard fm.fileExists(atPath: url.path) else { r.removed.append(what); return }
+        do { try fm.removeItem(at: url); r.removed.append(what) } catch { r.failed.append("\(what): \(error.localizedDescription)") }
+    }
+    // the permissions first: tccutil finds the app by its identifier through macOS's app registry, which forgets it
+    // once the app is deleted ("No such bundle identifier"), so resetting after the removal never worked
+    var permissions = true
+    for service in ["Accessibility", "ScreenCapture"] {
+        let t = Process()
+        t.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        t.arguments = ["reset", service, agentLabel]
+        t.standardOutput = FileHandle.nullDevice
+        if (try? t.run()) != nil { t.waitUntilExit() }
+        if t.terminationStatus != 0 { permissions = false; r.failed.append("the \(service == "ScreenCapture" ? "Screen Recording" : service) permission") }
+    }
+    if permissions { r.removed.append("its permissions") }
+    remove(home.appendingPathComponent("Library/LaunchAgents/\(agentLabel).plist"), "starting at login")
+    if purge {
+        remove(Paths.support, "your settings and Lookup Word's own folder")
+        remove(Paths.logs, "its logs")
+    }
+    if Bundle.main.bundlePath.hasSuffix(".app") { remove(Bundle.main.bundleURL, "the app") }
+    if !purge { r.kept.append("Your settings stay in \(Paths.support.path).") }
+    if let u = store.url, !(purge && u.path.hasPrefix(Paths.support.path + "/")) { r.kept.append("Your vocabulary stays at \(u.path).") }
+    return r
+}
+// the launch agent unloaded: ends the agent's process (this one, from the menu)
+func unloadAgent() {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    p.arguments = ["bootout", "gui/\(getuid())/\(agentLabel)"]
+    p.standardError = FileHandle.nullDevice
+    if (try? p.run()) != nil { p.waitUntilExit() }
 }
 
 // --- checks without the screen or the shortcut --------------------------------------------------------------------
@@ -223,6 +247,17 @@ if let i = args.firstIndex(of: "--render-settings"), i + 1 < args.count {
     v.cacheDisplay(in: v.bounds, to: rep)
     try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: args[i + 1]))
     print("wrote \(args[i + 1]) \(Int(v.bounds.width))×\(Int(v.bounds.height))"); exit(0)
+}
+
+// `LookupWord --uninstall [--purge]` does what the menu's Uninstall does, without asking: for scripts and tests
+if args.contains("--uninstall") {
+    // only as an installed app, which knows its own identifier: never guess it (it would uninstall another copy)
+    guard Bundle.main.bundleIdentifier != nil, Bundle.main.bundlePath.hasSuffix(".app") else {
+        print("Run it from the installed app: \"~/Applications/Lookup Word.app/Contents/MacOS/LookupWord\" --uninstall"); exit(1)
+    }
+    let r = uninstallApp(purge: args.contains("--purge"))
+    unloadAgent()
+    print(r.report); exit(r.failed.isEmpty ? 0 : 1)
 }
 
 // `LookupWord --closest READ TEXT` prints the word of TEXT it would take for a reading

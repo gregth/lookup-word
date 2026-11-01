@@ -8,23 +8,21 @@ final class SettingsModel: ObservableObject {
 
     @Published var languages: Set<String>
     @Published var hotkey: String
-    @Published var screenReading: Bool
     @Published var menuBar: Bool
     @Published var closeAfter: Double
     @Published var storeType: String
     @Published var storePath: String
     @Published var saveDate: Bool
     let available: [Language]
-    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var screenReading, menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool }
-    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, screenReading: screenReading, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate) }
-    var saved = Snapshot(languages: [], hotkey: "", screenReading: false, menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false)
+    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool }
+    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate) }
+    var saved = Snapshot(languages: [], hotkey: "", menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false)
 
     init() {
         // what the file says now (it may have changed since launch), falling back to the settings in force
         let file = (try? Data(contentsOf: Paths.config)).flatMap { try? JSONDecoder().decode(Config.self, from: $0) } ?? config
         languages = Set(file.languages + ["en"])
         hotkey = ["option", "control", "command", "shift"].contains(file.hotkey) ? file.hotkey : "option"
-        screenReading = file.screenReading
         menuBar = file.menuBar
         closeAfter = file.closeAfter
         storeType = file.store.type
@@ -49,7 +47,7 @@ final class SettingsModel: ObservableObject {
         let order = available.map(\.code).filter { languages.contains($0) }
         dict["languages"] = ["en"] + order.filter { $0 != "en" }
         dict["hotkey"] = hotkey
-        dict["screenReading"] = screenReading
+        dict["screenReading"] = nil  // from versions with a switch for it
         dict["menuBar"] = menuBar
         dict["closeAfter"] = closeAfter
         var store = dict["store"] as? [String: Any] ?? [:]
@@ -89,16 +87,19 @@ struct SettingsView: View {
                         Text("Double-tap ⌘ Command").tag("command")
                         Text("Double-tap ⇧ Shift").tag("shift")
                     }
-                    Toggle(isOn: $model.screenReading) {
+                    // the word under the pointer is always tried; its permission is the user's to give
+                    HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Read the word under the pointer")
-                            Text("When nothing is selected. Needs Screen Recording permission.")
+                            Text("Word under the pointer")
+                            Text("With nothing selected, the double-tap reads it off the screen. Needs Screen Recording.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                    }
-                    if model.screenReading && !CGPreflightScreenCaptureAccess() {
-                        Button("Open Screen Recording Settings…") {
-                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+                        Spacer()
+                        if CGPreflightScreenCaptureAccess() { Text("Allowed").foregroundStyle(.secondary) }
+                        else {
+                            Button("Allow…") {
+                                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+                            }
                         }
                     }
                     Toggle("Show the menu bar icon", isOn: $model.menuBar)
@@ -187,18 +188,16 @@ func showSettings() {
     settingsWindow = w
 }
 
-// A restart with the new settings. Under its launch agent, launchd restarts the job itself (kickstart -k), at once and
-// without the 10 s throttle a failure exit would wait; a helper left to reopen the app afterwards dies with it, since
-// launchd ends every process of the job (the old way, which left it stopped). Started any other way (from Terminal,
-// swift run), a new copy is opened before this one quits.
+// A restart with the new settings. The launch agent's copy (install.sh marks it with LOOKUP_AGENT) asks launchd to
+// restart its job (kickstart -k), at once; a helper left to reopen the app afterwards would die with it, since launchd
+// ends every process of the job. Any other copy (opened from Finder, Terminal, swift run), or a kickstart refused,
+// opens a new copy of itself before this one quits.
 func restart() {
-    let label = Bundle.main.bundleIdentifier ?? "io.github.gregth.lookup-word"
-    if getppid() == 1 {  // launchd's child
+    if ProcessInfo.processInfo.environment["LOOKUP_AGENT"] != nil, isInstalledApp {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        p.arguments = ["kickstart", "-k", "gui/\(getuid())/\(label)"]
-        if (try? p.run()) != nil { p.waitUntilExit() }  // launchd stops this process before it returns
-        exit(1)  // kickstart refused (not loaded under that label): KeepAlive restarts it after the failure exit
+        p.arguments = ["kickstart", "-k", "gui/\(getuid())/\(agentLabel)"]
+        if (try? p.run()) != nil { p.waitUntilExit() }  // on success launchd stops this process before it returns
     }
     let cfg = NSWorkspace.OpenConfiguration()
     cfg.createsNewApplicationInstance = true

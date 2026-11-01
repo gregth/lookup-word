@@ -57,9 +57,8 @@ flowchart TD
 flowchart TD
   T["Double-tap: onKey() calls lookUp()"] --> S{"selection() via Accessibility?"}
   S -- "selected text" --> SH["show(word, rect, around)"]
-  S -- nothing --> SR{"config.screenReading"}
-  SR -- off --> M2["card: select a word first"]
-  SR -- on --> O["byOCR(): ScreenCaptureKit capture, wordAt() reads it with Vision"]
+  S -- nothing --> O
+  O["byOCR(): ScreenCaptureKit capture, wordAt() reads it with Vision; no Screen Recording: the card explains, with a button to the setting"]
   O --> X["textUnderPointer() + closest(): the app's own word, if any"]
   X --> SH
   SH --> LG["language(around): NaturalLanguage hint"]
@@ -74,7 +73,7 @@ flowchart TD
 
 - `lookUp()` first checks the Accessibility permission. With a selection, `selection()` returns the selected text,
   its bounds and up to 1000 characters of the element's value as context.
-- With screen reading on, `byOCR()` captures a 640×90 pt region around the pointer (excluding the app's own windows).
+- With nothing selected, `byOCR()` captures a 640×90 pt region around the pointer (excluding the app's own windows).
   `wordAt()` finds the line and word with `VNDetectTextRectanglesRequest`, reads the word's crop three ways and keeps the
   surest, and reads up to four neighbours a side. `closest(_:in:)` then picks the word of the element's real text that
   best fits the reading and its neighbours (look-alike letters folded by `shape()`). Without element text, the raw

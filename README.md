@@ -9,7 +9,7 @@ Everything runs on your Mac. It uses only the dictionaries in Apple's Dictionary
 
 ![Select or point at a word, double-tap ⌥, and the card shows it in your other languages; the word is saved to your vocabulary](docs/demo.gif)
 
-*The demo uses screen reading, which is optional; with the default settings you select the word first. See [Two ways to pick a word](#two-ways-to-pick-a-word).*
+*The demo points at words; you can also select them. See [Two ways to pick a word](#two-ways-to-pick-a-word).*
 
 | English | Dutch | Greek |
 |---|---|---|
@@ -20,8 +20,9 @@ Everything runs on your Mac. It uses only the dictionaries in Apple's Dictionary
 Greek is my mother tongue. I work in English, and I live in the Netherlands, where everything around me is in Dutch.
 Every day I try to improve both of those languages while I work, so I keep meeting words I only half know.
 
-1. I used the Mac's Look Up. It showed one dictionary's entry, when what I wanted at a glance was the word in my other
-   languages: an English word in Greek, a Dutch word in English and Greek.
+1. I used the Mac's Look Up. It shows every dictionary's entry, but I had to read through them for what I wanted at a
+   glance, the word in my other languages (an English word in Greek, a Dutch word in English and Greek), and I
+   couldn't hear the translations.
 2. For that I opened online dictionaries such as WordReference: switch to the browser, type the word, pick the language
    pair, wait, and read through the page. Each lookup took long enough to break the flow of the work I was reading for.
 3. And the word was gone afterwards. Neither Look Up nor the browser kept a list, so the words I looked up were tracked
@@ -36,15 +37,16 @@ lands in my vocabulary file without my doing anything. What I look up while work
 
 - **It remembers.** Look Up keeps no history. Lookup Word saves each word, with its meaning and translations, to a
   Markdown or JSON file you own. Point it at a notes vault (Obsidian, Logseq…) and the list is a note.
-- **All your languages at once.** The translations sit at the top of the card, one line per language, instead of inside
-  separate dictionary entries. Languages without a dictionary between them (Dutch and Greek, say) translate through
-  English.
-- **Hear every word**, each in its own language's voice.
+- **The translation, at a glance.** Look Up already lists every enabled dictionary's entry; Lookup Word also puts a
+  one-line translation into each of your languages at the top of the card, so you don't read through the entries to
+  find it. Languages without a dictionary between them (Dutch and Greek, say) translate through English.
+- **Hear every word.** Look Up doesn't pronounce the translations; Lookup Word has a speaker for the word and for each
+  translation, each in its own language's voice.
 - **Inflected Greek words.** Apple's dictionaries find the base form of English and Dutch words (*went* → *go*,
   *liep* → *lopen*) but not of Greek ones; Lookup Word adds that (*είδε* → *βλέπω*).
-- **Optional: the word under the pointer, in any app.** With screen reading on, it reads the word under the pointer
-  off the screen, so it also works where you cannot select text or where Look Up does not reach (Chrome, canvas apps,
-  remote desktops, playing video).
+- **The word under the pointer, in any app.** With nothing selected, it reads the word under the pointer off the
+  screen, so it also works where you cannot select text or where Look Up does not reach (Chrome, canvas apps, remote
+  desktops, playing video).
 
 ## Requirements
 
@@ -92,11 +94,11 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 - **Select a word and double-tap ⌥** (two quick taps of Option alone). A click elsewhere, a key or 30 seconds close the card.
 - **Click 🔈** to hear a word.
 - **The menu bar icon** opens your vocabulary and the settings, and uninstalls the app.
-- **With screen reading on**, double-tap ⌥ with nothing selected to look up the word under the pointer.
+- **Or point at a word**, with nothing selected, and double-tap ⌥.
 
 ## Two ways to pick a word
 
-### Selection: always on
+### Select the word
 
 ![Dragging across a word to select it, double-tapping ⌥, and its card](docs/mode-selection.gif)
 
@@ -104,23 +106,23 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 - Needs **Accessibility**, to read the selection and to notice the shortcut.
 - Works wherever text can be selected.
 
-### Screen reading: optional
+### Or point at it
 
 ![Pointing at a word with nothing selected, double-tapping ⌥, and the highlighted word with its card](docs/mode-screen.gif)
 
 - Point at a word, with nothing selected, then double-tap ⌥. Lookup Word reads the word off the screen and highlights it.
 - Also works where text can't be selected: images, video, canvas apps, remote desktops.
 - Needs **Screen Recording** as well. Lookup Word captures a strip of the screen around the pointer only when you
-  double-tap, never sends it anywhere, and saves it to a file only with `"debug": true`.
+  double-tap with nothing selected, never sends it anywhere, and saves it to a file only with `"debug": true`.
 
-Screen reading is off by default. Turn it on in **Settings… → Read the word under the pointer**, and allow Screen
-Recording when macOS asks. While it's off, a double-tap with nothing selected only asks you to select the word.
+macOS asks for Screen Recording the first time you point at a word. It's your choice: without it, the card explains
+what it's for, with a button to the setting, and selecting words keeps working with Accessibility alone.
 
 ## Settings
 
 Menu bar icon → **Settings…**:
 
-![The settings window: shortcut, screen reading, menu bar icon, card timeout, languages, and where words are saved](docs/settings.png)
+![The settings window: shortcut, the word under the pointer, menu bar icon, card timeout, languages, and where words are saved](docs/settings.png)
 
 **Save and Restart** applies the changes. They are stored in `~/Library/Application Support/Lookup Word/config.json`,
 written with the defaults on first launch. After editing that file by hand, choose **Restart to Apply Settings** in
@@ -130,7 +132,6 @@ the menu. Every key is optional.
 |---|---|---|
 | `languages` | `["en", "nl", "el"]` | The language packs to use, from [packs/](packs/). English is the pivot and is always on. |
 | `hotkey` | `"option"` | The modifier to double-tap: `option`, `control`, `command` or `shift`. |
-| `screenReading` | `false` | Read the word under the pointer when nothing is selected. Needs **Screen Recording** permission. |
 | `menuBar` | `true` | Show the menu bar icon. **Hide Menu Bar Icon** in its menu sets this to `false`. With the icon hidden, open Lookup Word again from Applications for its settings. |
 | `closeAfter` | `30` | Seconds before the card closes by itself; `0` keeps it open until a click or a key. |
 | `debug` | `false` | Save each screen reading as `capture.png` in the support folder and log its coordinates. |
