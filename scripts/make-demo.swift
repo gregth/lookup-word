@@ -52,8 +52,29 @@ func stepBar(_ current: Int) {
     }
 }
 
+// The ⌥ key, up or pressed, in the window's empty upper right; and a ring spreading from the pointer on each tap.
+func optionKey(pressed: Bool) {
+    let up: CGFloat = pressed ? 0 : 5
+    let base = NSRect(x: 640, y: 170, width: 120, height: 104)
+    NSColor(white: 0.05, alpha: 1).setFill()  // the key's side
+    NSBezierPath(roundedRect: base.offsetBy(dx: 0, dy: 5), xRadius: 16, yRadius: 16).fill()
+    let top = base.offsetBy(dx: 0, dy: 5 - up - 5)
+    (pressed ? NSColor(red: 0.5, green: 0.88, blue: 0.69, alpha: 1) : NSColor(white: 0.32, alpha: 1)).setFill()
+    NSBezierPath(roundedRect: top, xRadius: 16, yRadius: 16).fill()
+    let ink = pressed ? NSColor(white: 0.1, alpha: 1) : NSColor(white: 0.95, alpha: 1)
+    let sym = NSAttributedString(string: "⌥", attributes: [.font: NSFont.systemFont(ofSize: 40, weight: .medium), .foregroundColor: ink])
+    sym.draw(at: NSPoint(x: top.midX - sym.size().width / 2, y: top.minY + 14))
+    let name = NSAttributedString(string: "option", attributes: [.font: NSFont.systemFont(ofSize: 15, weight: .medium), .foregroundColor: ink])
+    name.draw(at: NSPoint(x: top.midX - name.size().width / 2, y: top.maxY - 30))
+}
+func ring(at p: NSPoint, _ t: CGFloat) {  // t 0…1: grows and fades
+    let r = 10 + 34 * t
+    NSColor(red: 0.5, green: 0.88, blue: 0.69, alpha: 0.9 * (1 - t)).setStroke()
+    let c = NSBezierPath(ovalIn: NSRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)); c.lineWidth = 3; c.stroke()
+}
+
 // One frame: the window with its sentence and the steps, and optionally the pointer, the highlight and the card.
-func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect: NSRect) -> CGImage {
+func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect: NSRect, key: Bool? = nil, ringAt: CGFloat? = nil) -> CGImage {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(W), pixelsHigh: Int(H), bitsPerSample: 8, samplesPerPixel: 4,
                                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     let ctx = NSGraphicsContext(bitmapImageRep: rep)!
@@ -92,6 +113,8 @@ func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect
         NSGraphicsContext.current?.restoreGraphicsState()
     }
     stepBar(step)
+    if let pressed = key { optionKey(pressed: pressed) }
+    if let t = ringAt, let p = pointerAt { ring(at: NSPoint(x: p.x + 2, y: p.y + 2), t) }
     if let p = pointerAt { pointer(at: p) }
     NSGraphicsContext.current = nil
     return rep.cgImage!
@@ -115,7 +138,14 @@ for sc in scenes {
         let p = NSPoint(x: at.x + (target.x - at.x) * t, y: at.y + (target.y - at.y) * t)
         frames.append((frame(sc, pointerAt: p, step: 1, card: nil, wordRect: wordRect), 0.04))
     }
-    frames.append((frame(sc, pointerAt: target, step: 2, card: nil, wordRect: wordRect), 0.8))
+    // the double-tap: the key goes down and up twice, a ring spreading from the pointer with each tap
+    frames.append((frame(sc, pointerAt: target, step: 2, card: nil, wordRect: wordRect, key: false), 0.3))
+    for _ in 0..<2 {
+        frames.append((frame(sc, pointerAt: target, step: 2, card: nil, wordRect: wordRect, key: true, ringAt: 0), 0.08))
+        frames.append((frame(sc, pointerAt: target, step: 2, card: nil, wordRect: wordRect, key: true, ringAt: 0.35), 0.06))
+        frames.append((frame(sc, pointerAt: target, step: 2, card: nil, wordRect: wordRect, key: false, ringAt: 0.7), 0.06))
+        frames.append((frame(sc, pointerAt: target, step: 2, card: nil, wordRect: wordRect, key: false), 0.08))
+    }
     frames.append((frame(sc, pointerAt: target, step: 3, card: card, wordRect: wordRect), 1.6))
     frames.append((frame(sc, pointerAt: target, step: 4, card: card, wordRect: wordRect), 1.6))
     at = NSPoint(x: target.x, y: 520)

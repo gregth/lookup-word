@@ -155,12 +155,31 @@ final class Menu: NSObject {
         guard a.runModal() == .alertFirstButtonReturn else { return }
         let fm = FileManager.default, label = Bundle.main.bundleIdentifier ?? "io.github.gregth.lookup-word"
         let home = fm.homeDirectoryForCurrentUser
-        try? fm.removeItem(at: home.appendingPathComponent("Library/LaunchAgents/\(label).plist"))
-        if a.suppressionButton?.state == .on {
-            try? fm.removeItem(at: Paths.support)
-            try? fm.removeItem(at: home.appendingPathComponent("Library/Logs/Lookup Word"))
+        var removed: [String] = [], failed: [String] = []
+        // each removal, reported: what it removed, or why not (a file already gone counts as removed)
+        func remove(_ url: URL, _ what: String) {
+            guard fm.fileExists(atPath: url.path) else { removed.append(what); return }
+            do { try fm.removeItem(at: url); removed.append(what) } catch { failed.append("\(what): \(error.localizedDescription)") }
         }
-        if Bundle.main.bundlePath.hasSuffix(".app") { try? fm.removeItem(atPath: Bundle.main.bundlePath) }
+        remove(home.appendingPathComponent("Library/LaunchAgents/\(label).plist"), "starting at login")
+        let purge = a.suppressionButton?.state == .on
+        if purge {
+            remove(Paths.support, "your settings and Lookup Word's own folder")
+            remove(home.appendingPathComponent("Library/Logs/Lookup Word"), "its logs")
+        }
+        if Bundle.main.bundlePath.hasSuffix(".app") { remove(Bundle.main.bundleURL, "the app") }
+        var kept: [String] = []
+        if !purge { kept.append("Your settings stay in \(Paths.support.path).") }
+        if let u = store.url, !(purge && u.path.hasPrefix(Paths.support.path)) { kept.append("Your vocabulary stays at \(u.path).") }
+
+        let done = NSAlert()
+        done.messageText = failed.isEmpty ? "Lookup Word is uninstalled" : "Lookup Word is partly uninstalled"
+        done.informativeText = (["Removed: " + removed.joined(separator: ", ") + ", and its permissions."]
+            + (failed.isEmpty ? [] : ["Could not remove: " + failed.joined(separator: "; ")])
+            + kept + ["To install it again, run install.sh from its folder."]).joined(separator: "\n\n")
+        done.alertStyle = failed.isEmpty ? .informational : .warning
+        done.addButton(withTitle: "OK")
+        done.runModal()
         // the permissions and the launch agent last, from a shell that outlives this process
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
