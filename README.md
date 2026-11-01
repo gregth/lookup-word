@@ -7,6 +7,8 @@ what you actually read.
 
 Everything runs on your Mac. It uses only the dictionaries in Apple's Dictionary.app: nothing you read is sent anywhere.
 
+![Select or point at a word, double-tap ⌥, and the card shows it in your other languages; the word is saved to your vocabulary](docs/demo.gif)
+
 | English | Dutch | Greek |
 |---|---|---|
 | ![The card for "run": its pronunciation, the Dutch and Greek translations, and the Oxford entry](docs/card-english.png) | ![The card for "liep", found as "lopen", with English and Greek](docs/card-dutch.png) | ![The card for "είδε", found as "βλέπω", with English and Dutch](docs/card-greek.png) |
@@ -18,11 +20,15 @@ Every day I try to improve both of those languages while I work, so I keep meeti
 
 1. I used the Mac's Look Up. It showed one dictionary's entry, when what I wanted at a glance was the word in my other
    languages: an English word in Greek, a Dutch word in English and Greek.
-2. I closed the card, and the word was gone: Look Up keeps no history, so the words I looked up were tracked nowhere.
-3. I keep a vocabulary note that I practise on my phone, but the words I looked up while working never reached it.
+2. For that I opened online dictionaries such as WordReference: switch to the browser, type the word, pick the language
+   pair, wait, and read through the page. Each lookup took long enough to break the flow of the work I was reading for.
+3. And the word was gone afterwards. Neither Look Up nor the browser kept a list, so the words I looked up were tracked
+   nowhere.
+4. Yet that list is what I learn from: I turn my words into flashcards and practise them on my phone with spaced
+   repetition, but a word I looked up only reached that list when I copied it there by hand.
 
-So Lookup Word does the three things in one step: one keystroke shows the word in all my languages, and the word lands
-in my vocabulary note without my doing anything. What I look up while reading becomes what I practise.
+So Lookup Word does it in one step: one keystroke shows the word in all my languages, offline and at once, and the word
+lands in my vocabulary file without my doing anything. What I look up while working becomes tomorrow's flashcards.
 
 ## What it adds to Apple's Look Up
 
