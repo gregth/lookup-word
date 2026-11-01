@@ -74,7 +74,8 @@ func ring(at p: NSPoint, _ t: CGFloat) {  // t 0…1: grows and fades
 }
 
 // One frame: the window with its sentence and the steps, and optionally the pointer, the highlight and the card.
-func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect: NSRect, key: Bool? = nil, ringAt: CGFloat? = nil) -> CGImage {
+func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect: NSRect, key: Bool? = nil, ringAt: CGFloat? = nil,
+           selected: Bool = false, caption: (String, String)? = nil, note: String? = nil) -> CGImage {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(W), pixelsHigh: Int(H), bitsPerSample: 8, samplesPerPixel: 4,
                                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     let ctx = NSGraphicsContext(bitmapImageRep: rep)!
@@ -88,7 +89,10 @@ func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect
     NSAttributedString(string: sc.language, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium),
                                                          .foregroundColor: NSColor(white: 1, alpha: 0.5)])
         .draw(at: NSPoint(x: window.midX - 30, y: window.minY + 11))
-    if card != nil {
+    if selected {  // the app's own selection, behind the word
+        NSColor(red: 0.16, green: 0.38, blue: 0.86, alpha: 0.85).setFill()
+        NSRect(x: wordRect.minX - 1, y: wordRect.minY + 1, width: wordRect.width + 2, height: wordRect.height - 2).fill()
+    } else if card != nil {
         NSColor.systemYellow.withAlphaComponent(0.45).setFill()
         NSBezierPath(roundedRect: wordRect.insetBy(dx: -2, dy: 0), xRadius: 3, yRadius: 3).fill()
     }
@@ -112,7 +116,26 @@ func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect
         card.draw(in: r, from: src, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
         NSGraphicsContext.current?.restoreGraphicsState()
     }
-    stepBar(step)
+    if let (title, text) = caption {  // a still's caption in place of the steps
+        NSColor(white: 1, alpha: 0.06).setFill()
+        let r = NSRect(x: window.minX + 20, y: H - 108, width: window.width - 40, height: 60)
+        NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10).fill()
+        NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 16, weight: .semibold),
+                                                       .foregroundColor: NSColor(red: 0.5, green: 0.88, blue: 0.69, alpha: 1)])
+            .draw(at: NSPoint(x: r.minX + 18, y: r.minY + 9))
+        NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 14), .foregroundColor: NSColor(white: 1, alpha: 0.75)])
+            .draw(at: NSPoint(x: r.minX + 18, y: r.minY + 33))
+    } else { stepBar(step) }
+    if let note, let p = pointerAt {  // the card's message when there is no word to look up
+        let s = NSAttributedString(string: note, attributes: [.font: NSFont.systemFont(ofSize: 15), .foregroundColor: NSColor(white: 0.92, alpha: 1)])
+        let box = s.boundingRect(with: NSSize(width: 360, height: 400), options: [.usesLineFragmentOrigin])
+        let r = NSRect(x: p.x - 40, y: p.y - 30 - box.height - 36, width: 360 + 40, height: box.height + 36)
+        NSGraphicsContext.current?.saveGraphicsState()
+        let shadow = NSShadow(); shadow.shadowBlurRadius = 18; shadow.shadowColor = NSColor(white: 0, alpha: 0.6); shadow.set()
+        NSColor(white: 0.12, alpha: 1).setFill(); NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10).fill()
+        NSGraphicsContext.current?.restoreGraphicsState()
+        s.draw(with: NSRect(x: r.minX + 20, y: r.minY + 18, width: 360, height: box.height), options: [.usesLineFragmentOrigin])
+    }
     if let pressed = key { optionKey(pressed: pressed) }
     if let t = ringAt, let p = pointerAt { ring(at: NSPoint(x: p.x + 2, y: p.y + 2), t) }
     if let p = pointerAt { pointer(at: p) }
@@ -149,6 +172,33 @@ for sc in scenes {
     frames.append((frame(sc, pointerAt: target, step: 3, card: card, wordRect: wordRect), 1.6))
     frames.append((frame(sc, pointerAt: target, step: 4, card: card, wordRect: wordRect), 1.6))
     at = NSPoint(x: target.x, y: 520)
+}
+
+// stills of the two ways to pick a word, and of the second one switched off
+do {
+    let sc = scenes[0]
+    let card = NSImage(contentsOf: docs.appendingPathComponent(sc.card))!
+    card.size = NSSize(width: CGFloat(card.representations[0].pixelsWide) / 2, height: CGFloat(card.representations[0].pixelsHigh) / 2)
+    let attrs: [NSAttributedString.Key: Any] = [.font: textFont]
+    let range = (sc.sentence as NSString).range(of: sc.word)
+    let x0 = textOrigin.x + ((sc.sentence as NSString).substring(to: range.location) as NSString).size(withAttributes: attrs).width
+    let size = (sc.word as NSString).size(withAttributes: attrs)
+    let wordRect = NSRect(x: x0, y: textOrigin.y, width: size.width, height: size.height)
+    let on = NSPoint(x: wordRect.midX - 2, y: wordRect.midY - 4)
+    let stills: [(String, CGImage)] = [
+        ("mode-selection.png", frame(sc, pointerAt: NSPoint(x: wordRect.maxX + 160, y: wordRect.maxY + 20), step: 0, card: card, wordRect: wordRect,
+                                     selected: true, caption: ("Selection (always on)", "Select a word, then double-tap ⌥. Needs Accessibility only."))),
+        ("mode-screen.png", frame(sc, pointerAt: on, step: 0, card: card, wordRect: wordRect,
+                                  caption: ("Screen reading (optional: \"screenReading\": true)", "Point at any word, nothing selected, then double-tap ⌥. Also needs Screen Recording."))),
+        ("mode-screen-off.png", frame(sc, pointerAt: on, step: 0, card: nil, wordRect: wordRect,
+                                      caption: ("Screen reading off, nothing selected", "Lookup Word asks you to select the word: it never reads the screen unless you turn it on."),
+                                      note: "Select a word, then double-tap ⌥. To look up the word under the pointer without selecting it, turn on screen reading in the settings.")),
+    ]
+    for (name, img) in stills {
+        let rep = NSBitmapImageRep(cgImage: img)
+        try! rep.representation(using: .png, properties: [:])!.write(to: docs.appendingPathComponent(name))
+        print("wrote docs/\(name)")
+    }
 }
 
 let out = docs.appendingPathComponent("demo.gif")

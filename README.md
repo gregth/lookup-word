@@ -1,6 +1,4 @@
-<p align="center"><img src="docs/icon.png" width="128" height="128" alt="Lookup Word's icon: a magnifier over the letters Aa"></p>
-
-# Lookup Word
+# <img src="docs/icon.png" width="44" height="44" alt="" align="top"> Lookup Word
 
 Look Up for people who live in more than one language. Select a word anywhere on your Mac and double-tap ⌥: a card
 shows the word, its pronunciation, its translation into each of your other languages with a 🔈 to hear it, and the
@@ -10,6 +8,8 @@ what you actually read.
 Everything runs on your Mac. It uses only the dictionaries in Apple's Dictionary.app: nothing you read is sent anywhere.
 
 ![Select or point at a word, double-tap ⌥, and the card shows it in your other languages; the word is saved to your vocabulary](docs/demo.gif)
+
+*The demo uses screen reading, which is optional; with the default settings you select the word first. See [Two ways to pick a word](#two-ways-to-pick-a-word).*
 
 | English | Dutch | Greek |
 |---|---|---|
@@ -80,6 +80,21 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 - **Click 🔈** to hear a word.
 - **The menu bar icon** opens your vocabulary and the settings, and uninstalls the app.
 - **With screen reading on**, double-tap ⌥ with nothing selected to look up the word under the pointer.
+
+## Two ways to pick a word
+
+| Selection (always on) | Screen reading (optional) |
+|---|---|
+| ![A selected word with its card above it](docs/mode-selection.png) | ![The pointer over a word, highlighted, with its card above it](docs/mode-screen.png) |
+| Select a word in any app, then double-tap ⌥. | Point at a word, nothing selected, then double-tap ⌥. Lookup Word reads it off the screen and highlights it. |
+| Needs **Accessibility**: to read the selection and notice the shortcut. | Needs **Accessibility** and **Screen Recording**: it captures a strip of the screen around the pointer, only when you double-tap, and never sends it (it saves one only with `"debug": true`). |
+| Works wherever text can be selected. | Also works where text can't be selected: images, video, canvas apps, remote desktops. |
+
+Screen reading is off by default. Turn it on with `"screenReading": true` in the settings, then **Restart to Apply
+Settings** and allow Screen Recording when macOS asks. While it's off and nothing is selected, a double-tap only asks
+you to select the word:
+
+![With screen reading off and nothing selected, the card asks you to select the word](docs/mode-screen-off.png)
 
 ## Settings
 
