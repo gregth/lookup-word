@@ -6,6 +6,7 @@
 // the screen (Screen Recording once), highlights it, and shows a popover pointing at it. Everything comes from the
 // dictionaries enabled in Dictionary.app, offline. A click elsewhere, a key or 30 seconds close it.
 import AppKit
+import SwiftUI
 
 let hotkey: (flag: NSEvent.ModifierFlags, symbol: String) = {
     switch config.hotkey {
@@ -101,8 +102,8 @@ final class Menu: NSObject {
         m.addItem(NSMenuItem(title: "Double-tap \(hotkey.symbol) to look up a word", action: nil, keyEquivalent: ""))
         m.addItem(.separator())
         if store.url != nil { add(m, "Open Vocabulary", #selector(vocabulary)) }
-        add(m, "Open Settings", #selector(settings))
-        add(m, "Restart to Apply Settings", #selector(restart))
+        add(m, "Settings…", #selector(settings))
+        add(m, "Restart to Apply Settings", #selector(restartNow))
         add(m, "Hide Menu Bar Icon", #selector(hide))
         m.addItem(.separator())
         add(m, "Uninstall Lookup Word…", #selector(uninstall))
@@ -113,19 +114,9 @@ final class Menu: NSObject {
         let i = NSMenuItem(title: title, action: sel, keyEquivalent: ""); i.target = self; m.addItem(i)
     }
     @objc func vocabulary() { if let u = store.url, FileManager.default.fileExists(atPath: u.path) { NSWorkspace.shared.open(u) } }
-    @objc func settings() { NSWorkspace.shared.open(Paths.config) }
-    // under its launch agent (KeepAlive after a failure), quitting with a failure status brings it straight back with
-    // the new settings; started any other way, it opens a new copy of itself first
-    @objc func restart() {
-        if ProcessInfo.processInfo.environment["XPC_SERVICE_NAME"]?.contains("lookup-word") != true {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/bin/sh")
-            p.arguments = ["-c", "sleep 1; open -n \"$0\"", Bundle.main.bundlePath]
-            try? p.run()
-            exit(0)
-        }
-        exit(1)
-    }
+    @objc func settings() { showSettings() }
+    @objc func restartNow() { restart() }
+
     // the icon goes, and stays gone (menuBar false in the settings); opening the app again brings it back
     @objc func hide() {
         setSetting("menuBar", false)
@@ -219,6 +210,19 @@ if let i = args.firstIndex(of: "--save"), i + 1 < args.count {
     let hint = i + 2 < args.count ? args[i + 2] : "en"
     if let e = lookUpEntry(args[i + 1], hint: hint) { print(store is NoStore ? "Not saved: the store is none." : store.save(e)) } else { print("no entry") }
     exit(0)
+}
+
+// `LookupWord --render-settings out.png` draws the settings window, dark, to an image
+if let i = args.firstIndex(of: "--render-settings"), i + 1 < args.count {
+    NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+    let v = NSHostingView(rootView: SettingsView(model: SettingsModel()) { _ in })
+    v.appearance = NSAppearance(named: .darkAqua)
+    v.frame = NSRect(origin: .zero, size: v.fittingSize)
+    v.layoutSubtreeIfNeeded()
+    let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds)!
+    v.cacheDisplay(in: v.bounds, to: rep)
+    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: args[i + 1]))
+    print("wrote \(args[i + 1]) \(Int(v.bounds.width))×\(Int(v.bounds.height))"); exit(0)
 }
 
 // `LookupWord --closest READ TEXT` prints the word of TEXT it would take for a reading
@@ -317,6 +321,7 @@ var menu = config.menuBar ? Menu() : nil
 final class Delegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         if menu == nil { menu = Menu(); setSetting("menuBar", true) }
+        showSettings()
         return false
     }
 }

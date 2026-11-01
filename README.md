@@ -83,23 +83,36 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 
 ## Two ways to pick a word
 
-| Selection (always on) | Screen reading (optional) |
-|---|---|
-| ![A selected word with its card above it](docs/mode-selection.png) | ![The pointer over a word, highlighted, with its card above it](docs/mode-screen.png) |
-| Select a word in any app, then double-tap ⌥. | Point at a word, nothing selected, then double-tap ⌥. Lookup Word reads it off the screen and highlights it. |
-| Needs **Accessibility**: to read the selection and notice the shortcut. | Needs **Accessibility** and **Screen Recording**: it captures a strip of the screen around the pointer, only when you double-tap, and never sends it (it saves one only with `"debug": true`). |
-| Works wherever text can be selected. | Also works where text can't be selected: images, video, canvas apps, remote desktops. |
+### Selection: always on
 
-Screen reading is off by default. Turn it on with `"screenReading": true` in the settings, then **Restart to Apply
-Settings** and allow Screen Recording when macOS asks. While it's off and nothing is selected, a double-tap only asks
-you to select the word:
+![A selected word, and its card above it](docs/mode-selection.png)
 
-![With screen reading off and nothing selected, the card asks you to select the word](docs/mode-screen-off.png)
+- Select a word in any app, then double-tap ⌥.
+- Needs **Accessibility**, to read the selection and to notice the shortcut.
+- Works wherever text can be selected.
+
+### Screen reading: optional
+
+![The pointer over a word, which Lookup Word highlights, and its card above it](docs/mode-screen.png)
+
+- Point at a word, with nothing selected, then double-tap ⌥. Lookup Word reads the word off the screen and highlights it.
+- Also works where text can't be selected: images, video, canvas apps, remote desktops.
+- Needs **Screen Recording** as well. Lookup Word captures a strip of the screen around the pointer only when you
+  double-tap, never sends it anywhere, and saves it to a file only with `"debug": true`.
+
+Screen reading is off by default. Turn it on in **Settings… → Read the word under the pointer**, and allow Screen
+Recording when macOS asks. While it's off, a double-tap with nothing selected only asks you to select the word.
 
 ## Settings
 
-`~/Library/Application Support/Lookup Word/config.json`, written with the defaults on first launch (menu bar → Open
-Settings). After editing it, choose **Restart to Apply Settings**. Every key is optional.
+Menu bar icon → **Settings…**:
+
+![The settings window: shortcut, screen reading, menu bar icon, card timeout, languages, and where words are saved](docs/settings.png)
+
+**Save and Restart** applies the changes. Everything is stored in
+`~/Library/Application Support/Lookup Word/config.json`, written with the defaults on first launch; **Edit Advanced
+Settings…** opens it for the options the window doesn't show (the Markdown store's sections and safety checks). After
+editing the file by hand, choose **Restart to Apply Settings** in the menu. Every key is optional.
 
 | Key | Default | What it does |
 |---|---|---|
@@ -181,6 +194,11 @@ The command lists the available dictionaries and which ones each language still 
 - `--text WORD [en|nl|el]`: prints the entry it would show, without the screen.
 - `--pointer "SOME TEXT" [size] [bold] [dark]`: tests screen reading on rendered text.
 - Logs go to `~/Library/Logs/Lookup Word/lookup.log`.
+
+## How it works
+
+[docs/DESIGN.md](docs/DESIGN.md) has diagrams of the parts, a lookup from end to end, translation through English,
+the vocabulary file's safe write, and how settings are applied.
 
 ## Licence
 
