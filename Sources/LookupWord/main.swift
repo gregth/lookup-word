@@ -247,7 +247,7 @@ if let i = args.firstIndex(of: "--save"), i + 1 < args.count {
 // `LookupWord --render-welcome out.png [ready]` draws the welcome window, dark, to an image
 if let i = args.firstIndex(of: "--render-welcome"), i + 1 < args.count {
     NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
-    let model = WelcomeModel(); model.trusted = args.contains("ready")
+    let model = WelcomeModel(); model.trusted = args.contains("ready"); model.screen = args.contains("ready")
     let v = NSHostingView(rootView: WelcomeView(model: model) { })
     v.appearance = NSAppearance(named: .darkAqua)
     v.frame = NSRect(origin: .zero, size: v.fittingSize)
@@ -372,7 +372,7 @@ DispatchQueue.main.async { for p in packs where p.lemmas != nil { _ = lemma("", 
 app.setActivationPolicy(.accessory)
 watchKeys()
 var menu = config.menuBar ? Menu() : nil
-if !AXIsProcessTrusted() { DispatchQueue.main.async { showWelcome() } }  // the one permission it cannot work without
+if shouldWelcome() { DispatchQueue.main.async { showWelcome() } }  // the first launch, or while Accessibility is missing
 
 // Opening the app while it runs (double-clicking it in Applications, Spotlight) shows its settings.
 final class Delegate: NSObject, NSApplicationDelegate {

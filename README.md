@@ -65,11 +65,16 @@ cd lookup-word
 ```
 
 The script builds the app into `~/Applications/Lookup Word.app`, starts it at login, and lists which of your languages'
-dictionaries are ready. Lookup Word then opens a welcome window: it needs **Accessibility** to notice the shortcut
-and read the selection, and the window's button opens that setting. Switch Lookup Word on, and the window notices by
-itself:
+dictionaries are ready. Lookup Word then opens a welcome window with its two permissions, each with a button to the
+setting:
 
-![The welcome window: Lookup Word needs Accessibility, with Later and Open Settings buttons](docs/welcome.png)
+- **Accessibility**, required: to notice the shortcut and read the selection.
+- **Screen Recording**, optional: to point at a word without selecting it. You can skip it; pointing at a word later
+  asks again.
+
+Switch Lookup Word on, and the window notices by itself:
+
+![The welcome window: Accessibility (required) and Screen Recording (optional), each with a button to its setting](docs/welcome.png)
 
 Lookup Word isn't signed with an Apple Developer ID, so there is no download to install, only this build from source.
 macOS doesn't quarantine an app built on your own Mac, so it opens without a Gatekeeper warning. To keep your
@@ -118,8 +123,9 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 - Needs **Screen Recording** as well. Lookup Word captures a strip of the screen around the pointer only when you
   double-tap with nothing selected, never sends it anywhere, and saves it to a file only with `"debug": true`.
 
-macOS asks for Screen Recording the first time you point at a word. It's your choice: without it, the card explains
-what it's for, with a button to the setting, and selecting words keeps working with Accessibility alone.
+The welcome window offers Screen Recording at the start. It's your choice: if you skip it, pointing at a word later
+shows a card that explains what it's for, with a button to the setting, and selecting words keeps working with
+Accessibility alone.
 
 ## Settings
 

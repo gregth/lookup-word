@@ -1,25 +1,50 @@
-// The welcome window: shown at launch while Accessibility is not allowed, which the app cannot work without (the
-// double-tap and the selection both need it). It says why, opens the right Settings page, and notices by itself when
-// the permission is given: no terminal, no restart. Screen Recording is not asked here: macOS asks the first time the
-// user points at a word, and the card explains it then.
+// The welcome window: the two permissions, each with why and a button to its setting. Accessibility is required (the
+// double-tap and the selection need it); Screen Recording is optional, for pointing at a word without selecting it,
+// and can wait: pointing at a word later asks again, from the card. It shows at the first launch, and after that only
+// while Accessibility is missing; it notices by itself when a permission is given: no terminal, no restart.
 import AppKit
 import SwiftUI
 
 final class WelcomeModel: ObservableObject {
     @Published var trusted = AXIsProcessTrusted()
+    @Published var screen = CGPreflightScreenCaptureAccess()
     var timer: Timer?
-    func watch(_ done: @escaping () -> Void) {
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] t in
-            guard let self, AXIsProcessTrusted(), !self.trusted else { return }
-            self.trusted = true
-            t.invalidate()
-            done()
+    func watch(_ gotAccessibility: @escaping () -> Void) {
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            if !self.trusted, AXIsProcessTrusted() { self.trusted = true; gotAccessibility() }
+            if !self.screen, CGPreflightScreenCaptureAccess() { self.screen = true }
         }
     }
-    func openSettings() {
+    func openAccessibility() {
         // the prompt adds Lookup Word to the list (switched off), so there is nothing to find or drag in
         _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+    }
+    func openScreenRecording() {
+        _ = CGRequestScreenCaptureAccess()  // macOS's own prompt, the first time; it adds the app to the list
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+    }
+}
+
+struct PermissionRow: View {
+    var title: String, badge: String, text: String, granted: Bool, button: String, action: () -> Void
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "circle").font(.title2)
+                .foregroundStyle(granted ? Color.green : Color.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(title).font(.headline)
+                    Text(badge).font(.caption).padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(Capsule().fill(Color.secondary.opacity(0.2)))
+                }
+                Text(text).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if granted { Text("Allowed").font(.callout).foregroundStyle(.secondary) }
+            else { Button(button, action: action) }
+        }
     }
 }
 
@@ -28,41 +53,35 @@ struct WelcomeView: View {
     var onDone: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 14) {
                 Image(nsImage: appIcon).resizable().frame(width: 56, height: 56)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Welcome to Lookup Word").font(.title2.weight(.semibold))
-                    Text("Select a word anywhere and double-tap \(hotkey.symbol).").foregroundStyle(.secondary)
+                    Text("Select a word anywhere, or point at one, and double-tap \(hotkey.symbol).").foregroundStyle(.secondary)
                 }
             }
-            if model.trusted {
-                Label("Ready: select a word, or point at one, and double-tap \(hotkey.symbol).", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text("Pointing at a word without selecting it needs Screen Recording as well; macOS asks the first time.")
-                    .font(.callout).foregroundStyle(.secondary)
-            } else {
-                Text("It needs one permission first: **Accessibility**, to notice the double-tap and read the word you select. It reads nothing else, and nothing leaves your Mac.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Open the setting, switch Lookup Word on, and come back: this window notices by itself.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
+            PermissionRow(title: "Accessibility", badge: "Required",
+                          text: "To notice the double-tap and read the word you select.",
+                          granted: model.trusted, button: "Open Settings", action: model.openAccessibility)
+            PermissionRow(title: "Screen Recording", badge: "Optional",
+                          text: "To read the word under the pointer when nothing is selected: in images, videos and apps where you can't select text. Lookup Word captures a strip around the pointer only when you double-tap, and nothing leaves your Mac. You can allow it later: pointing at a word asks again.",
+                          granted: model.screen, button: "Allow…", action: model.openScreenRecording)
+            Text("Switch Lookup Word on in each setting and come back: this window notices by itself. macOS may ask to quit and reopen it for Screen Recording.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
-                if !model.trusted {
+                if model.trusted {
+                    Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                } else {
                     ProgressView().controlSize(.small)
-                    Text("Waiting for the permission…").font(.callout).foregroundStyle(.secondary)
+                    Text("Waiting for Accessibility…").font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if model.trusted {
-                    Button("Done") { onDone() }.keyboardShortcut(.defaultAction)
-                } else {
-                    Button("Later") { onDone() }.keyboardShortcut(.cancelAction)
-                    Button("Open Settings") { model.openSettings() }.keyboardShortcut(.defaultAction)
-                }
+                Button(model.trusted ? "Done" : "Later") { onDone() }.keyboardShortcut(model.trusted ? .defaultAction : .cancelAction)
             }
         }
         .padding(24)
-        .frame(width: 460)
+        .frame(width: 500)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
@@ -73,12 +92,18 @@ var appIcon: NSImage {
     return (Bundle.main.url(forResource: "AppIcon", withExtension: "icns") ?? docs).flatMap { NSImage(contentsOf: $0) } ?? NSApp.applicationIconImage
 }
 
+// the first launch, remembered, so the window shows once with both permissions and afterwards only while
+// Accessibility is missing
+var welcomed: URL { Paths.support.appendingPathComponent("welcomed") }
+func shouldWelcome() -> Bool { !AXIsProcessTrusted() || !FileManager.default.fileExists(atPath: welcomed.path) }
+
 var welcomeWindow: NSWindow?
 func showWelcome() {
     NSApp.activate(ignoringOtherApps: true)
     if let w = welcomeWindow { w.makeKeyAndOrderFront(nil); return }
+    FileManager.default.createFile(atPath: welcomed.path, contents: Data())
     let model = WelcomeModel()
-    let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 240), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 360), styleMask: [.titled, .closable], backing: .buffered, defer: false)
     w.title = "Lookup Word"
     w.isReleasedWhenClosed = false
     w.contentView = NSHostingView(rootView: WelcomeView(model: model) { welcomeWindow?.close(); welcomeWindow = nil })
@@ -86,9 +111,7 @@ func showWelcome() {
     w.center()
     w.makeKeyAndOrderFront(nil)
     welcomeWindow = w
-    // once allowed: the shortcut's monitors again, since those added before the permission may not see other apps' keys
-    model.watch {
-        watchKeys()
-        if let w = welcomeWindow { w.setContentSize(w.contentView!.fittingSize) }
-    }
+    // once Accessibility is allowed: the shortcut's monitors again, since those added before it may not see other
+    // apps' keys
+    model.watch { watchKeys() }
 }
