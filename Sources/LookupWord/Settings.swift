@@ -182,15 +182,20 @@ func showSettings() {
     settingsWindow = w
 }
 
-// Under its launch agent (KeepAlive after a failure), quitting with a failure status brings it straight back with
-// the new settings; started any other way, it opens a new copy of itself first.
+// A restart with the new settings. Under its launch agent, launchd restarts the job itself (kickstart -k), at once and
+// without the 10 s throttle a failure exit would wait; a helper left to reopen the app afterwards dies with it, since
+// launchd ends every process of the job (the old way, which left it stopped). Started any other way (from Terminal,
+// swift run), a new copy is opened before this one quits.
 func restart() {
-    if ProcessInfo.processInfo.environment["XPC_SERVICE_NAME"]?.contains("lookup-word") != true {
+    let label = Bundle.main.bundleIdentifier ?? "io.github.gregth.lookup-word"
+    if getppid() == 1 {  // launchd's child
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "sleep 1; open -n \"$0\"", Bundle.main.bundlePath]
-        try? p.run()
-        exit(0)
+        p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        p.arguments = ["kickstart", "-k", "gui/\(getuid())/\(label)"]
+        if (try? p.run()) != nil { p.waitUntilExit() }  // launchd stops this process before it returns
+        exit(1)  // kickstart refused (not loaded under that label): KeepAlive restarts it after the failure exit
     }
-    exit(1)
+    let cfg = NSWorkspace.OpenConfiguration()
+    cfg.createsNewApplicationInstance = true
+    NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: cfg) { _, _ in exit(0) }
 }
