@@ -125,4 +125,18 @@ let config: Config = {
     return Config()
 }()
 
+// One setting changed in config.json, every other key (and unknown ones) kept as the file has them.
+func setSetting(_ key: String, _ value: Any) {
+    let url = Paths.config
+    var dict: [String: Any] = [:]
+    if let data = try? Data(contentsOf: url), !data.isEmpty {
+        guard let d = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { log("config.json is not valid JSON: \(key) not saved"); return }
+        dict = d
+    }
+    dict[key] = value
+    if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) {
+        try? (data + Data("\n".utf8)).write(to: url, options: .atomic)
+    }
+}
+
 func log(_ s: String) { FileHandle.standardError.write((s + "\n").data(using: .utf8)!) }

@@ -11,6 +11,19 @@ Everything runs on your Mac. It uses only the dictionaries in Apple's Dictionary
 |---|---|---|
 | ![The card for "run": its pronunciation, the Dutch and Greek translations, and the Oxford entry](docs/card-english.png) | ![The card for "liep", found as "lopen", with English and Greek](docs/card-dutch.png) | ![The card for "είδε", found as "βλέπω", with English and Dutch](docs/card-greek.png) |
 
+## Why I built it
+
+Greek is my mother tongue. I work in English, and I live in the Netherlands, where everything around me is in Dutch.
+Every day I try to improve both of those languages while I work, so I keep meeting words I only half know.
+
+1. I used the Mac's Look Up. It showed one dictionary's entry, when what I wanted at a glance was the word in my other
+   languages: an English word in Greek, a Dutch word in English and Greek.
+2. I closed the card, and the word was gone: Look Up keeps no history, so the words I looked up were tracked nowhere.
+3. I keep a vocabulary note that I practise on my phone, but the words I looked up while working never reached it.
+
+So Lookup Word does the three things in one step: one keystroke shows the word in all my languages, and the word lands
+in my vocabulary note without my doing anything. What I look up while reading becomes what I practise.
+
 ## What it adds to Apple's Look Up
 
 - **It remembers.** Look Up keeps no history. Lookup Word saves each word, with its meaning and translations, to a
@@ -70,7 +83,7 @@ Settings). After editing it, choose **Restart to Apply Settings**. Every key is 
 | `languages` | `["en", "nl", "el"]` | The language packs to use, from [packs/](packs/). English is the pivot and is always on. |
 | `hotkey` | `"option"` | The modifier to double-tap: `option`, `control`, `command` or `shift`. |
 | `screenReading` | `false` | Read the word under the pointer when nothing is selected. Needs **Screen Recording** permission. |
-| `menuBar` | `true` | Show the menu bar icon. |
+| `menuBar` | `true` | Show the menu bar icon. **Hide Menu Bar Icon** in its menu sets this to `false`; open Lookup Word again from Applications to bring the icon back. |
 | `closeAfter` | `30` | Seconds before the card closes by itself; `0` keeps it open until a click or a key. |
 | `debug` | `false` | Save each screen reading as `capture.png` in the support folder and log its coordinates. |
 | `store` | Markdown | Where looked-up words go: see below. |

@@ -103,6 +103,7 @@ final class Menu: NSObject {
         if store.url != nil { add(m, "Open Vocabulary", #selector(vocabulary)) }
         add(m, "Open Settings", #selector(settings))
         add(m, "Restart to Apply Settings", #selector(restart))
+        add(m, "Hide Menu Bar Icon", #selector(hide))
         m.addItem(.separator())
         add(m, "Uninstall Lookup Word…", #selector(uninstall))
         add(m, "Quit Lookup Word", #selector(quit))
@@ -125,6 +126,16 @@ final class Menu: NSObject {
         }
         exit(1)
     }
+    // the icon goes, and stays gone (menuBar false in the settings); opening the app again brings it back
+    @objc func hide() {
+        setSetting("menuBar", false)
+        NSStatusBar.system.removeStatusItem(item)
+        menu = nil
+        present(message("Menu bar icon hidden. To bring it back, open Lookup Word again from your Applications folder."), at: nil)
+        monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { _ in close() }
+        timer = Timer.scheduledTimer(withTimeInterval: 8, repeats: false) { _ in close() }
+    }
+
     // a clean exit: launchd's KeepAlive (SuccessfulExit false) leaves it stopped until the next login
     @objc func quit() { exit(0) }
 
@@ -271,6 +282,16 @@ DispatchQueue.main.async { for p in packs where p.lemmas != nil { _ = lemma("", 
 app.setActivationPolicy(.accessory)
 NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged, .keyDown], handler: onKey)
 _ = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { onKey($0); return $0 }
-let menu = config.menuBar ? Menu() : nil
+var menu = config.menuBar ? Menu() : nil
+
+// Opening the app while it runs (double-clicking it in Applications, Spotlight) shows the menu bar icon again.
+final class Delegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if menu == nil { menu = Menu(); setSetting("menuBar", true) }
+        return false
+    }
+}
+let delegate = Delegate()
+app.delegate = delegate
 if args.contains("--now") { DispatchQueue.main.async { lookUp() } }  // a test: look up at once
 app.run()
