@@ -65,8 +65,11 @@ cd lookup-word
 ```
 
 The script builds the app into `~/Applications/Lookup Word.app`, starts it at login, and lists which of your languages'
-dictionaries are ready. It then asks you to allow Lookup Word in **System Settings → Privacy & Security →
-Accessibility**, which it needs to read the selection and to notice the shortcut.
+dictionaries are ready. Lookup Word then opens a welcome window: it needs **Accessibility** to notice the shortcut
+and read the selection, and the window's button opens that setting. Switch Lookup Word on, and the window notices by
+itself:
+
+![The welcome window: Lookup Word needs Accessibility, with Later and Open Settings buttons](docs/welcome.png)
 
 Lookup Word isn't signed with an Apple Developer ID, so there is no download to install, only this build from source.
 macOS doesn't quarantine an app built on your own Mac, so it opens without a Gatekeeper warning. To keep your
@@ -180,6 +183,9 @@ app's own text where the app shares it (Chrome and Electron apps do).
 ## Limits
 
 - Names and very new words are often missing from the dictionaries (*λάπτοπ*).
+- Languages without a dictionary between them translate through English, so a translation can be off: the English
+  word has meanings of its own, and the other language may pick one the original never had (Dutch *zetten* → *set,
+  put* → Greek *κάνω, προκαλώ*, "make, cause"). Check the entry when it matters.
 - Hyphenated compounds and numbers read off the screen come back as one token.
 - Screen reading needs readable contrast; tiny or stylised text may misread.
 - Dictionary.app's list of dictionaries comes through two private calls (stable for years, but undocumented), which

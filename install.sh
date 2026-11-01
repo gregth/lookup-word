@@ -7,8 +7,8 @@
 #
 # Signing: with a code-signing certificate (yours, or a self-signed "Lookup Word Signing" one: Keychain Access →
 # Certificate Assistant → Create a Certificate…, Self Signed Root, Code Signing), macOS keeps the permissions across
-# rebuilds. Without one the app is signed ad hoc, which macOS treats as a new app after each build: this script then
-# resets its permissions and walks you through granting them again.
+# rebuilds. Without one the app is signed ad hoc, which macOS treats as a new app after each build: its permissions are
+# cleared, and the app asks for them again in its welcome window.
 set -euo pipefail
 here=${0:A:h}
 # LOOKUP_LABEL, LOOKUP_APP_DIR, LOOKUP_SUPPORT and LOOKUP_LOGS install a second, separate copy (scripts/test-install.sh)
@@ -93,28 +93,17 @@ EOF
 # registered with macOS's app registry, so tccutil (below, and when uninstalling) finds it by its identifier
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
 
-# An ad hoc build is a new app to macOS: the old permissions no longer apply, so they are cleared and granted again.
+# An ad hoc build is a new app to macOS: its old permissions no longer apply, and a stale entry would show switched on
+# while doing nothing, so they are cleared. The app then asks for Accessibility itself, in its welcome window.
 if (( adhoc )); then
   tccutil reset Accessibility $label >/dev/null 2>&1 || true
   tccutil reset ScreenCapture $label >/dev/null 2>&1 || true
 fi
 launchctl bootstrap gui/$uid "$plist"
 
-if (( adhoc )) && [[ -t 0 ]]; then
-  open -R "$app"  # Finder shows the app, to drag into the lists or find with +
-  open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-  read "?Accessibility: add Lookup Word (+, or drag it from Finder) and switch it on, then press Enter… "
-  launchctl kickstart -k gui/$uid/$label
-fi
-
 others=$(pgrep -fl 'LookupWord$' | grep -v "$app" || true)
 [[ -n $others ]] && echo "Note: another Lookup Word is running and will answer the same shortcut:\n$others"
 
-if (( adhoc )) && [[ ! -t 0 ]]; then  # no one to walk through the permissions: say so, rather than claim it works
-  echo "Lookup Word is installed, but its permissions were cleared (an ad hoc build is a new app to macOS)." >&2
-  echo "Switch it on in System Settings → Privacy & Security → Accessibility, then choose Restart to Apply Settings in its menu." >&2
-else
-  echo "Lookup Word is running: select a word and double-tap ⌥."
-fi
+echo "Lookup Word is installed and running. If it needs a permission, its window says so."
 "$app/Contents/MacOS/LookupWord" --dictionaries
 echo "Settings: $config  (menu bar → Settings…)"

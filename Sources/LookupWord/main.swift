@@ -82,6 +82,14 @@ func readPointer(_ mouse: NSPoint, _ mine: Int) {
 }
 
 // --- the shortcut: double-tap the modifier ---------------------------------------------------------------------
+// The monitors that see it, in other apps (needs Accessibility) and in this one; set again once the permission is
+// given, as those added before it may not see other apps' keys.
+var keyMonitors: [Any] = []
+func watchKeys() {
+    keyMonitors.forEach(NSEvent.removeMonitor)
+    keyMonitors = [NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged, .keyDown], handler: onKey),
+                   NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { onKey($0); return $0 }].compactMap { $0 }
+}
 // Two taps of the modifier alone, each under 0.3 s, the second within 0.4 s of the first; any other key or modifier
 // in between cancels, so its combinations (and a keyboard layout's ⌥ characters) never trigger it.
 
@@ -236,6 +244,20 @@ if let i = args.firstIndex(of: "--save"), i + 1 < args.count {
     exit(0)
 }
 
+// `LookupWord --render-welcome out.png [ready]` draws the welcome window, dark, to an image
+if let i = args.firstIndex(of: "--render-welcome"), i + 1 < args.count {
+    NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+    let model = WelcomeModel(); model.trusted = args.contains("ready")
+    let v = NSHostingView(rootView: WelcomeView(model: model) { })
+    v.appearance = NSAppearance(named: .darkAqua)
+    v.frame = NSRect(origin: .zero, size: v.fittingSize)
+    v.layoutSubtreeIfNeeded()
+    let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds)!
+    v.cacheDisplay(in: v.bounds, to: rep)
+    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: args[i + 1]))
+    print("wrote \(args[i + 1]) \(Int(v.bounds.width))×\(Int(v.bounds.height))"); exit(0)
+}
+
 // `LookupWord --render-settings out.png` draws the settings window, dark, to an image
 if let i = args.firstIndex(of: "--render-settings"), i + 1 < args.count {
     NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
@@ -348,9 +370,9 @@ if let i = args.firstIndex(of: "--pointer"), i + 1 < args.count {
 let app = NSApplication.shared
 DispatchQueue.main.async { for p in packs where p.lemmas != nil { _ = lemma("", p) } }  // read lemma lists at start, not on first use
 app.setActivationPolicy(.accessory)
-NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged, .keyDown], handler: onKey)
-_ = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { onKey($0); return $0 }
+watchKeys()
 var menu = config.menuBar ? Menu() : nil
+if !AXIsProcessTrusted() { DispatchQueue.main.async { showWelcome() } }  // the one permission it cannot work without
 
 // Opening the app while it runs (double-clicking it in Applications, Spotlight) shows its settings.
 final class Delegate: NSObject, NSApplicationDelegate {
