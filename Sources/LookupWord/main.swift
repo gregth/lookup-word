@@ -168,23 +168,33 @@ final class Menu: NSObject {
             remove(home.appendingPathComponent("Library/Logs/Lookup Word"), "its logs")
         }
         if Bundle.main.bundlePath.hasSuffix(".app") { remove(Bundle.main.bundleURL, "the app") }
+        // the permissions now, while this process lives: launchd ends every process of the job when it exits, so a
+        // helper left to do it afterwards is killed first (the permissions survived an uninstall that way)
+        for service in ["Accessibility", "ScreenCapture"] {
+            let t = Process()
+            t.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            t.arguments = ["reset", service, label]
+            if (try? t.run()) != nil { t.waitUntilExit() }
+            if t.terminationStatus != 0 { failed.append("the \(service == "ScreenCapture" ? "Screen Recording" : service) permission") }
+        }
         var kept: [String] = []
         if !purge { kept.append("Your settings stay in \(Paths.support.path).") }
         if let u = store.url, !(purge && u.path.hasPrefix(Paths.support.path)) { kept.append("Your vocabulary stays at \(u.path).") }
 
         let done = NSAlert()
         done.messageText = failed.isEmpty ? "Lookup Word is uninstalled" : "Lookup Word is partly uninstalled"
-        done.informativeText = (["Removed: " + removed.joined(separator: ", ") + ", and its permissions."]
+        if !failed.contains(where: { $0.hasSuffix("permission") }) { removed.append("its permissions") }
+        done.informativeText = (["Removed: " + removed.joined(separator: ", ") + "."]
             + (failed.isEmpty ? [] : ["Could not remove: " + failed.joined(separator: "; ")])
             + kept + ["To install it again, run install.sh from its folder."]).joined(separator: "\n\n")
         done.alertStyle = failed.isEmpty ? .informational : .warning
         done.addButton(withTitle: "OK")
         done.runModal()
-        // the permissions and the launch agent last, from a shell that outlives this process
+        // the launch agent last: unloading it ends this process too
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "sleep 1; tccutil reset Accessibility \"$0\"; tccutil reset ScreenCapture \"$0\"; launchctl bootout gui/$(id -u)/\"$0\"", label]
-        try? p.run()
+        p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        p.arguments = ["bootout", "gui/\(getuid())/\(label)"]
+        if (try? p.run()) != nil { p.waitUntilExit() }
         exit(0)
     }
 }

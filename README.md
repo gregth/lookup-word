@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/icon.png" width="128" height="128" alt="Lookup Word's icon: a magnifier over the letters Aa"></p>
+
 # Lookup Word
 
 Look Up for people who live in more than one language. Select a word anywhere on your Mac and double-tap ⌥: a card
