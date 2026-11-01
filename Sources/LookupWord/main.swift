@@ -104,6 +104,7 @@ final class Menu: NSObject {
         add(m, "Open Settings", #selector(settings))
         add(m, "Restart to Apply Settings", #selector(restart))
         m.addItem(.separator())
+        add(m, "Uninstall Lookup Word…", #selector(uninstall))
         add(m, "Quit Lookup Word", #selector(quit))
         item.menu = m
     }
@@ -126,6 +127,36 @@ final class Menu: NSObject {
     }
     // a clean exit: launchd's KeepAlive (SuccessfulExit false) leaves it stopped until the next login
     @objc func quit() { exit(0) }
+
+    // what uninstall.sh does: the launch agent, the app and its permissions go; the settings and the support folder's
+    // vocabulary only when asked, and a vocabulary file elsewhere (a note in a vault) never
+    @objc func uninstall() {
+        NSApp.activate(ignoringOtherApps: true)
+        let a = NSAlert()
+        a.messageText = "Uninstall Lookup Word?"
+        a.informativeText = "This removes the app, stops it starting at login, and resets its permissions."
+            + (store.url.map { $0.path.hasPrefix(Paths.support.path) ? "" : "\n\nYour vocabulary at \($0.path) stays." } ?? "")
+        a.showsSuppressionButton = true
+        a.suppressionButton?.title = "Also delete my settings and the vocabulary in Lookup Word's own folder"
+        a.addButton(withTitle: "Uninstall")
+        a.addButton(withTitle: "Cancel")
+        a.buttons[0].hasDestructiveAction = true
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        let fm = FileManager.default, label = Bundle.main.bundleIdentifier ?? "io.github.gregth.lookup-word"
+        let home = fm.homeDirectoryForCurrentUser
+        try? fm.removeItem(at: home.appendingPathComponent("Library/LaunchAgents/\(label).plist"))
+        if a.suppressionButton?.state == .on {
+            try? fm.removeItem(at: Paths.support)
+            try? fm.removeItem(at: home.appendingPathComponent("Library/Logs/Lookup Word"))
+        }
+        if Bundle.main.bundlePath.hasSuffix(".app") { try? fm.removeItem(atPath: Bundle.main.bundlePath) }
+        // the permissions and the launch agent last, from a shell that outlives this process
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", "sleep 1; tccutil reset Accessibility \"$0\"; tccutil reset ScreenCapture \"$0\"; launchctl bootout gui/$(id -u)/\"$0\"", label]
+        try? p.run()
+        exit(0)
+    }
 }
 
 // --- checks without the screen or the shortcut --------------------------------------------------------------------

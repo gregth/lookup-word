@@ -51,13 +51,13 @@ permissions across rebuilds, create a self-signed code-signing certificate named
 → Certificate Assistant → Create a Certificate…, Self Signed Root, Code Signing) before running the script, or pass
 your own with `LOOKUP_SIGN_IDENTITY`.
 
-To remove it: `./uninstall.sh` (add `--purge` to delete your settings and vocabulary too).
+To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh` (add `--purge` to delete your settings and the vocabulary in its own folder too). A vocabulary file you keep elsewhere is never deleted.
 
 ## Use
 
 - **Select a word and double-tap ⌥** (two quick taps of Option alone). A click elsewhere, a key or 30 seconds close the card.
 - **Click 🔈** to hear a word.
-- **The menu bar icon** opens your vocabulary and the settings.
+- **The menu bar icon** opens your vocabulary and the settings, and uninstalls the app.
 - **With screen reading on**, double-tap ⌥ with nothing selected to look up the word under the pointer.
 
 ## Settings

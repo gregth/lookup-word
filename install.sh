@@ -31,6 +31,7 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$logs"
 cp "$bin" "$app/Contents/MacOS/LookupWord"
 rm -rf "$app/Contents/Resources/packs"
 cp -R "$here/packs" "$app/Contents/Resources/packs"
+cp "$here/docs/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 version=$(cat "$here/VERSION" 2>/dev/null || echo 0.1.0)
 cat > "$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -40,6 +41,7 @@ cat > "$app/Contents/Info.plist" <<EOF
   <key>CFBundleName</key><string>Lookup Word</string>
   <key>CFBundleExecutable</key><string>LookupWord</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleShortVersionString</key><string>$version</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
