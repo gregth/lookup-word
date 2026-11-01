@@ -8,15 +8,21 @@
 import AppKit
 import SwiftUI
 
-let hotkey: (flag: NSEvent.ModifierFlags, symbol: String) = {
+let hotkey: (flag: NSEvent.ModifierFlags, symbol: String, name: String) = {
     switch config.hotkey {
-    case "control", "ctrl", "⌃": return (.control, "⌃")
-    case "command", "cmd", "⌘": return (.command, "⌘")
-    case "shift", "⇧": return (.shift, "⇧")
-    case "option", "opt", "alt", "⌥": return (.option, "⌥")
-    default: warn("hotkey \"\(config.hotkey)\" is not option, control, command or shift: using option"); return (.option, "⌥")
+    case "control", "ctrl", "⌃": return (.control, "⌃", "⌃ Control")
+    case "command", "cmd", "⌘": return (.command, "⌘", "⌘ Command")
+    case "shift", "⇧": return (.shift, "⇧", "⇧ Shift")
+    case "option", "opt", "alt", "⌥": return (.option, "⌥", "⌥ Option")
+    default: warn("hotkey \"\(config.hotkey)\" is not option, control, command or shift: using option"); return (.option, "⌥", "⌥ Option")
     }
 }()
+// The two ways to look a word up, said the same way everywhere (the welcome, the settings, the cards), for anyone:
+// no "double-tap", "pointer reading" or permission names without what they mean.
+let pressTwice = "press the \(hotkey.name) key twice, quickly"
+let howSelect = "Select a word (double-click it, or drag over it), then \(pressTwice)."
+let howPoint = "Rest the mouse pointer on a word, without selecting it, then \(pressTwice). This works on pictures and videos too."
+let whyScreen = "To read a word you point at, Lookup Word takes a picture of a small area around the mouse pointer, only when you press the keys, and never saves or sends it. macOS calls this permission Screen Recording."
 
 // saves one at a time, so two quick lookups never write the same file at once
 let saves = DispatchQueue(label: "saves")
@@ -49,7 +55,7 @@ func lookUp() {
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { _ in close() }
     if config.closeAfter > 0 { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
     if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
-        present(message("Lookup Word needs Accessibility permission to read the word you select and to notice the double-tap. Switch it on, then double-tap \(hotkey.symbol) again.", action: ("Open Accessibility Settings", "lookupword://open/accessibility")), at: nil)
+        present(message("Lookup Word can't notice the keys or read the word you selected yet: it needs the permission macOS calls Accessibility. Click below, turn on the switch next to Lookup Word, then try again.", action: ("Open the setting", "lookupword://open/accessibility")), at: nil)
     } else if let (word, rect, around) = selection() {
         show(word, rect, around, mine)
     } else {
@@ -74,9 +80,9 @@ func readPointer(_ mouse: NSPoint, _ mine: Int) {
             } else { show(r.word, rect, r.around, mine) }
         }
         else if !CGPreflightScreenCaptureAccess() {
-            update(message("To read the word under the pointer, Lookup Word needs Screen Recording permission: it captures a strip of the screen around the pointer only when you double-tap. Switch it on (macOS may ask to quit and reopen it), or select the word instead, then double-tap \(hotkey.symbol) again.", action: ("Open Screen Recording Settings", "lookupword://open/screen-recording")))
+            update(message("\(whyScreen)\n\nTo allow it, click below and turn on the switch next to Lookup Word (macOS may ask to quit and reopen it). Or select the word instead, then \(pressTwice).", action: ("Open the setting", "lookupword://open/screen-recording")))
         } else {
-            update(message("No word under the pointer. Select one, or point at it, then double-tap \(hotkey.symbol)."))
+            update(message("No word found under the mouse pointer.\n\n\(howSelect)\n\nOr: \(howPoint)"))
         }
     }
 }
@@ -112,7 +118,7 @@ final class Menu: NSObject {
         super.init()
         item.button?.image = NSImage(systemSymbolName: "character.book.closed", accessibilityDescription: "Lookup Word")
         let m = NSMenu()
-        m.addItem(NSMenuItem(title: "Double-tap \(hotkey.symbol) to look up a word", action: nil, keyEquivalent: ""))
+        m.addItem(NSMenuItem(title: "Select or point at a word, then press \(hotkey.symbol) twice", action: nil, keyEquivalent: ""))
         m.addItem(.separator())
         if store.url != nil { add(m, "Open Vocabulary", #selector(vocabulary)) }
         add(m, "Settings…", #selector(settings))

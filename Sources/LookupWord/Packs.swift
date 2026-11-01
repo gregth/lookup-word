@@ -25,6 +25,7 @@ struct Pack: Decodable {
     var voice: String  // AVSpeechSynthesisVoice language: "nl-NL"
     var monolingual: String?  // Dictionary.app short names: "Dutch"…
     var bilingual: String?  // …"Dutch - English"; none for English itself
+    var dictionaryIds: [String]?  // their identifiers in Dictionary.app (com.apple.dictionary.nl-en.oup), for Enable
     var script: String?  // a Unicode script only this language writes among the packs ("Greek"); words in it are its own
     var recognizer: String?  // NLLanguage code for telling the text's language, when NaturalLanguage knows it
     var ocr: [String]?  // Vision recognition languages that read it ("ru-RU" for Greek: see GreekHooks)
@@ -37,7 +38,7 @@ struct Pack: Decodable {
     var dir = URL(fileURLWithPath: "/")
 
     enum CodingKeys: String, CodingKey {
-        case code, name, flag, voice, monolingual, bilingual, script, recognizer, ocr, spellChecker, verb, verbLabels,
+        case code, name, flag, voice, monolingual, bilingual, dictionaryIds, script, recognizer, ocr, spellChecker, verb, verbLabels,
              stripHints, lemmas, gloss
     }
 

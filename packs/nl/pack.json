@@ -5,6 +5,7 @@
   "voice": "nl-NL",
   "monolingual": "Dutch",
   "bilingual": "Dutch - English",
+  "dictionaryIds": ["com.apple.dictionary.nl.Prisma", "com.apple.dictionary.nl-en.oup"],
   "recognizer": "nl",
   "ocr": ["nl-NL"],
   "spellChecker": "nl",

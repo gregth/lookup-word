@@ -58,23 +58,25 @@ struct WelcomeView: View {
                 Image(nsImage: appIcon).resizable().frame(width: 56, height: 56)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Welcome to Lookup Word").font(.title2.weight(.semibold))
-                    Text("Select a word anywhere, or point at one, and double-tap \(hotkey.symbol).").foregroundStyle(.secondary)
+                    Text("Look up any word on your Mac, in all your languages.").foregroundStyle(.secondary)
                 }
             }
-            PermissionRow(title: "Accessibility", badge: "Required",
-                          text: "To notice the double-tap and read the word you select.",
-                          granted: model.trusted, button: "Open Settings", action: model.openAccessibility)
-            PermissionRow(title: "Screen Recording", badge: "Optional",
-                          text: "To read the word under the pointer when nothing is selected: in images, videos and apps where you can't select text. Lookup Word captures a strip around the pointer only when you double-tap, and nothing leaves your Mac. You can allow it later: pointing at a word asks again.",
+            Text("There are two ways to look up a word. Each needs a permission from you, which macOS asks for in System Settings.")
+                .fixedSize(horizontal: false, vertical: true)
+            PermissionRow(title: "Select a word", badge: "Needed",
+                          text: "\(howSelect) For this, Lookup Word needs the permission macOS calls Accessibility, to notice the keys and read the word you selected.",
+                          granted: model.trusted, button: "Allow…", action: model.openAccessibility)
+            PermissionRow(title: "Point at a word", badge: "Optional",
+                          text: "\(howPoint) \(whyScreen) You can allow it later: pointing at a word will ask again.",
                           granted: model.screen, button: "Allow…", action: model.openScreenRecording)
-            Text("Switch Lookup Word on in each setting and come back: this window notices by itself. macOS may ask to quit and reopen it for Screen Recording.")
+            Text("When you click Allow, System Settings opens: turn on the switch next to Lookup Word, then come back here. This window updates by itself. For pointing, macOS may ask to quit and reopen Lookup Word.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 if model.trusted {
                     Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                 } else {
                     ProgressView().controlSize(.small)
-                    Text("Waiting for Accessibility…").font(.callout).foregroundStyle(.secondary)
+                    Text("Waiting for the first permission…").font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button(model.trusted ? "Done" : "Later") { onDone() }.keyboardShortcut(model.trusted ? .defaultAction : .cancelAction)

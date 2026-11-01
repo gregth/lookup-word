@@ -28,6 +28,7 @@ dictionary is optional but improves the card.
   "voice": "fr-FR",
   "monolingual": "French",
   "bilingual": "French - English",
+  "dictionaryIds": ["com.apple.dictionary.fr.Multi", "com.apple.dictionary.OxfordFrench"],
   "recognizer": "fr",
   "ocr": ["fr-FR"],
   "spellChecker": "fr",
@@ -42,6 +43,7 @@ dictionary is optional but improves the card.
 | `code`, `name`, `flag` | The ISO 639-1 code, the English name, and the flag shown before the translation. |
 | `voice` | The `AVSpeechSynthesisVoice` language for the 🔈. |
 | `monolingual`, `bilingual` | Dictionary short names, exactly as `--dictionaries` prints them. |
+| `dictionaryIds` | Their identifiers, for the Settings window's **Enable** button: `DictionaryIdentifier` in `/System/Library/AssetsV2/com_apple_MobileAsset_DictionaryServices_dictionary3macOS/*.xml` (`com.apple.dictionary.OxfordFrench`). |
 | `script` | Only for a script no other pack writes (Greek, Cyrillic…): words in it are always this language's. |
 | `recognizer` | The NaturalLanguage code, used to tell which language the text around a word is in. |
 | `ocr` | Vision recognition languages for screen reading (see `supportedRecognitionLanguages`). |

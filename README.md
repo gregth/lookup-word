@@ -1,15 +1,15 @@
 # <img src="docs/icon.png" width="44" height="44" alt="" align="top"> Lookup Word
 
-Look Up for people who live in more than one language. Select a word anywhere on your Mac and double-tap ⌥: a card
+Look Up for people who live in more than one language. Select a word anywhere on your Mac, or just point at it, and press the ⌥ Option key twice: a card
 shows the word, its pronunciation, its translation into each of your other languages with a 🔈 to hear it, and the
 full dictionary entries. Every word you look up is saved to a vocabulary file, so your word list builds itself from
 what you actually read.
 
 Everything runs on your Mac. It uses only the dictionaries in Apple's Dictionary.app: nothing you read is sent anywhere.
 
-![Select or point at a word, double-tap ⌥, and the card shows it in your other languages; the word is saved to your vocabulary](docs/demo.gif)
+![Select or point at a word, press ⌥ twice, and the card shows it in your other languages; the word is saved to your vocabulary](docs/demo.gif)
 
-*The demo points at words; you can also select them. See [Two ways to pick a word](#two-ways-to-pick-a-word).*
+*The demo points at words; you can also select them. See [Use](#use).*
 
 | English | Dutch | Greek |
 |---|---|---|
@@ -52,9 +52,10 @@ lands in my vocabulary file without my doing anything. What I look up while work
 
 - macOS 14 or later.
 - Apple's Command Line Tools, to build it: `xcode-select --install` (the full Xcode is not needed).
-- The dictionaries for your languages, enabled in **Dictionary.app → Settings**. For the default languages: *Oxford
-  Dictionary of English*, *Dutch*, *Dutch - English*, *Greek*, *Greek - English*. macOS downloads each one when you
-  tick it.
+- The dictionaries for your languages. Lookup Word's Settings window turns them on for you: **Enable** next to a
+  language, and macOS downloads its dictionaries in a minute or two. By hand: open Dictionary, choose **Dictionary →
+  Settings…** (⌘,) and tick them; for the default languages that is *Oxford Dictionary of English*, *Dutch*,
+  *Dutch - English*, *Greek* and *Greek - English*.
 
 ## Install
 
@@ -99,33 +100,34 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 
 ## Use
 
-- **Select a word and double-tap ⌥** (two quick taps of Option alone). A click elsewhere, a key or 30 seconds close the card.
-- **Click 🔈** to hear a word.
+There are two ways to look up a word. Both end the same way: press the **⌥ Option** key twice, quickly, and the card
+appears. To close it, click anywhere else or press any key; it also closes by itself after 30 seconds.
+
+### 1. Select the word
+
+![Dragging across a word to select it, pressing ⌥ twice, and its card](docs/mode-selection.gif)
+
+- Double-click the word, or drag over it, in any app. Then press ⌥ twice.
+- Lookup Word needs the **Accessibility** permission for this: it lets it notice the two key presses and read the
+  word you selected. The welcome window asks for it when you first open the app.
+
+### 2. Or point at it
+
+![Resting the pointer on a word without selecting it, pressing ⌥ twice, and the highlighted word with its card](docs/mode-screen.gif)
+
+- Rest the mouse pointer on the word, without selecting anything. Then press ⌥ twice. Lookup Word finds the word,
+  highlights it in yellow, and shows its card.
+- This also works where you can't select text: pictures, videos, some apps and remote desktops.
+- Lookup Word needs a second permission for this, which macOS calls **Screen Recording**. Don't let the name worry
+  you: Lookup Word only takes a picture of a small area around the pointer, only when you press the keys, and never
+  saves it or sends it anywhere (unless you turn on `"debug": true` for troubleshooting).
+- This one is optional. The welcome window offers it; if you skip it, pointing at a word later shows a card that
+  explains it again, with a button to allow it. Selecting words keeps working without it.
+
+### On the card
+
+- **Click the speaker** next to a word to hear it, in its own language's voice.
 - **The menu bar icon** opens your vocabulary and the settings, and uninstalls the app.
-- **Or point at a word**, with nothing selected, and double-tap ⌥.
-
-## Two ways to pick a word
-
-### Select the word
-
-![Dragging across a word to select it, double-tapping ⌥, and its card](docs/mode-selection.gif)
-
-- Select a word in any app, then double-tap ⌥.
-- Needs **Accessibility**, to read the selection and to notice the shortcut.
-- Works wherever text can be selected.
-
-### Or point at it
-
-![Pointing at a word with nothing selected, double-tapping ⌥, and the highlighted word with its card](docs/mode-screen.gif)
-
-- Point at a word, with nothing selected, then double-tap ⌥. Lookup Word reads the word off the screen and highlights it.
-- Also works where text can't be selected: images, video, canvas apps, remote desktops.
-- Needs **Screen Recording** as well. Lookup Word captures a strip of the screen around the pointer only when you
-  double-tap with nothing selected, never sends it anywhere, and saves it to a file only with `"debug": true`.
-
-The welcome window offers Screen Recording at the start. It's your choice: if you skip it, pointing at a word later
-shows a card that explains what it's for, with a button to the setting, and selecting words keeps working with
-Accessibility alone.
 
 ## Settings
 
@@ -140,7 +142,7 @@ the menu. Every key is optional.
 | Key | Default | What it does |
 |---|---|---|
 | `languages` | `["en", "nl", "el"]` | The language packs to use, from [packs/](packs/). English is the pivot and is always on. |
-| `hotkey` | `"option"` | The modifier to double-tap: `option`, `control`, `command` or `shift`. |
+| `hotkey` | `"option"` | The key to press twice: `option`, `control`, `command` or `shift`. |
 | `menuBar` | `true` | Show the menu bar icon. **Hide Menu Bar Icon** in its menu sets this to `false`. With the icon hidden, open Lookup Word again from Applications for its settings. |
 | `closeAfter` | `30` | Seconds before the card closes by itself; `0` keeps it open until a click or a key. |
 | `debug` | `false` | Save each screen reading as `capture.png` in the support folder and log its coordinates. |

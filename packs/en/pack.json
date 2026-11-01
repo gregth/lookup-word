@@ -4,6 +4,7 @@
   "flag": "🇬🇧",
   "voice": "en-GB",
   "monolingual": "English",
+  "dictionaryIds": ["com.apple.dictionary.ODE"],
   "recognizer": "en",
   "ocr": ["en-US"],
   "spellChecker": "en",

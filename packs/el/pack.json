@@ -5,6 +5,7 @@
   "voice": "el-GR",
   "monolingual": "Greek",
   "bilingual": "Greek - English",
+  "dictionaryIds": ["com.apple.dictionary.el.oup", "com.apple.dictionary.el-en.oup"],
   "script": "Greek",
   "recognizer": "el",
   "ocr": ["ru-RU"],

@@ -4,7 +4,7 @@ import AppKit
 import SwiftUI
 
 final class SettingsModel: ObservableObject {
-    struct Language: Identifiable { var id: String { code }; var code: String; var name: String; var flag: String; var missing: [String] }
+    struct Language: Identifiable { var id: String { code }; var code: String; var name: String; var flag: String; var missing: [String]; var ids: [String] }
 
     @Published var languages: Set<String>
     @Published var hotkey: String
@@ -13,6 +13,7 @@ final class SettingsModel: ObservableObject {
     @Published var storeType: String
     @Published var storePath: String
     @Published var saveDate: Bool
+    @Published var enabling: Set<String> = []  // languages whose dictionaries are downloading
     let available: [Language]
     struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool }
     var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate) }
@@ -29,7 +30,8 @@ final class SettingsModel: ObservableObject {
         storePath = file.store.path ?? ""
         saveDate = file.store.saveDate
         available = availablePacks.compactMap(loadPack).map { p in
-            Language(code: p.code, name: p.name, flag: p.flag ?? "", missing: [p.monolingual, p.bilingual].compactMap { $0 }.filter { dictionaries[$0] == nil })
+            Language(code: p.code, name: p.name, flag: p.flag ?? "", missing: [p.monolingual, p.bilingual].compactMap { $0 }.filter { dictionaries[$0] == nil },
+                     ids: p.dictionaryIds ?? [])
         }.sorted { ($0.code == "en" ? "" : $0.name) < ($1.code == "en" ? "" : $1.name) }
         saved = snapshot
     }
@@ -62,6 +64,12 @@ final class SettingsModel: ObservableObject {
         saved = snapshot
     }
 
+    func enable(_ lang: Language) {
+        enableDictionaries(lang.ids)
+        enabling.insert(lang.code)
+        languages.insert(lang.code)
+    }
+
     func choosePath() {
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
@@ -81,27 +89,19 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             Form {
                 Section {
-                    Picker("Shortcut", selection: $model.hotkey) {
-                        Text("Double-tap ⌥ Option").tag("option")
-                        Text("Double-tap ⌃ Control").tag("control")
-                        Text("Double-tap ⌘ Command").tag("command")
-                        Text("Double-tap ⇧ Shift").tag("shift")
+                    Picker("Key to press twice", selection: $model.hotkey) {
+                        Text("⌥ Option").tag("option")
+                        Text("⌃ Control").tag("control")
+                        Text("⌘ Command").tag("command")
+                        Text("⇧ Shift").tag("shift")
                     }
-                    // the word under the pointer is always tried; its permission is the user's to give
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Word under the pointer")
-                            Text("With nothing selected, the double-tap reads it off the screen. Needs Screen Recording.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if CGPreflightScreenCaptureAccess() { Text("Allowed").foregroundStyle(.secondary) }
-                        else {
-                            Button("Allow…") {
-                                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
-                            }
-                        }
-                    }
+                    // the two ways, each with its permission: for anyone, in the words the welcome window uses
+                    HowRow(title: "Select a word, then press the key twice",
+                           text: "Double-click the word, or drag over it. Needs the Accessibility permission.",
+                           allowed: AXIsProcessTrusted(), pane: "Privacy_Accessibility")
+                    HowRow(title: "Point at a word, then press the key twice",
+                           text: "Rest the mouse pointer on a word, without selecting it; works on pictures and videos too. Needs the Screen Recording permission: Lookup Word takes a picture of a small area around the pointer, only when you press the keys.",
+                           allowed: CGPreflightScreenCaptureAccess(), pane: "Privacy_ScreenCapture")
                     Toggle("Show the menu bar icon", isOn: $model.menuBar)
                     HStack {
                         Text("Close the card after")
@@ -110,25 +110,35 @@ struct SettingsView: View {
                         Stepper("", value: $model.closeAfter, in: 0...600, step: 5).labelsHidden()
                         Text(model.closeAfter == 0 ? "never" : "seconds").foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
                     }
-                } header: { Text("Looking up") }
+                } header: { Text("How to look up a word") }
 
                 Section {
                     ForEach(model.available) { lang in
-                        Toggle(isOn: Binding(get: { model.languages.contains(lang.code) },
-                                             set: { on in if on { model.languages.insert(lang.code) } else { model.languages.remove(lang.code) } })) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(lang.flag)  \(lang.name)")
-                                if lang.code == "en" {
-                                    Text("Always on: other languages translate through English").font(.caption).foregroundStyle(.secondary)
+                        HStack {
+                            Toggle(isOn: Binding(get: { model.languages.contains(lang.code) },
+                                                 set: { on in if on { model.languages.insert(lang.code) } else { model.languages.remove(lang.code) } })) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(lang.flag)  \(lang.name)")
+                                    if lang.code == "en" {
+                                        Text("Always on: other languages translate through English").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    if model.enabling.contains(lang.code) {
+                                        Text("Downloading in Dictionary.app, usually under two minutes. Then Save and Restart.")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    } else if !lang.missing.isEmpty {
+                                        Text((lang.missing.count == 1 ? "Needs the dictionary " : "Needs the dictionaries ") + lang.missing.joined(separator: ", ")
+                                             + (lang.ids.isEmpty ? ": tick them in Dictionary → Settings…" : ""))
+                                            .font(.caption).foregroundStyle(.orange)
+                                    }
                                 }
-                                if !lang.missing.isEmpty {
-                                    Text("Enable in Dictionary.app → Settings: " + lang.missing.joined(separator: ", "))
-                                        .font(.caption).foregroundStyle(.orange)
-                                }
+                            }.disabled(lang.code == "en")
+                            if !lang.missing.isEmpty, !lang.ids.isEmpty, !model.enabling.contains(lang.code) {
+                                Spacer()
+                                Button("Enable") { model.enable(lang) }
                             }
-                        }.disabled(lang.code == "en")
+                        }
                     }
-                    if model.available.contains(where: { !$0.missing.isEmpty }) {
+                    if model.available.contains(where: { !$0.missing.isEmpty && $0.ids.isEmpty }) {
                         Button("Open Dictionary…") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Dictionary.app")) }
                     }
                 } header: { Text("Languages") }
@@ -170,6 +180,24 @@ struct SettingsView: View {
     }
 }
 
+// one way to look a word up: what to do, what it needs, and whether that is allowed, with a button to allow it
+struct HowRow: View {
+    var title: String, text: String, allowed: Bool, pane: String
+    var body: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            if allowed { Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green).labelStyle(.titleAndIcon) }
+            else {
+                Button("Allow…") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!) }
+            }
+        }
+    }
+}
+
 // one settings window at a time, brought to the front
 var settingsWindow: NSWindow?
 func showSettings() {
@@ -186,6 +214,24 @@ func showSettings() {
     w.center()
     w.makeKeyAndOrderFront(nil)
     settingsWindow = w
+}
+
+// Turns dictionaries on as ticking them in Dictionary → Settings… does: their identifiers join Dictionary.app's list
+// (DCSActiveDictionaries), and with Dictionary.app open macOS downloads the missing ones by itself (French, Spanish and
+// German took under two minutes, 2026-11-02). With no list saved yet, macOS's own choice stands: the dictionaries in
+// use now are written in first, so turning on one never turns the others off.
+func enableDictionaries(_ ids: [String]) {
+    let app = "com.apple.DictionaryServices" as CFString, key = "DCSActiveDictionaries" as CFString
+    var active = CFPreferencesCopyAppValue(key, app) as? [String]
+    if active == nil, let f = dlsym(dlopen(nil, RTLD_NOW), "DCSDictionaryGetIdentifier") {
+        let id = unsafeBitCast(f, to: NameFn.self)
+        active = dictionaries.values.compactMap { id($0)?.takeUnretainedValue() as String? }
+    }
+    var list = active ?? []
+    list += ids.filter { !list.contains($0) }
+    CFPreferencesSetAppValue(key, list as CFArray, app)
+    CFPreferencesAppSynchronize(app)
+    NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Dictionary.app"))
 }
 
 // A restart with the new settings. The launch agent's copy (install.sh marks it with LOOKUP_AGENT) asks launchd to
