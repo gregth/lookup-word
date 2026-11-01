@@ -1,6 +1,6 @@
 // Draws docs/demo.gif: a sentence in each language, the pointer moving to a word, a double-tap of ⌥, and the card
-// Lookup Word shows for it. The cards are the app's own, from `LookupWord --render WORD LANG docs/card-….png`; the
-// window, pointer and key badge around them are drawn here.
+// Lookup Word shows for it, with the four steps numbered along the bottom. The cards are the app's own, from `LookupWord --render WORD LANG docs/card-….png`; the
+// window, pointer and steps around them are drawn here.
 //
 //   swift scripts/make-demo.swift      (from the repository root, after rendering the cards)
 import AppKit
@@ -32,19 +32,28 @@ func pointer(at p: NSPoint) {
     NSColor.white.setStroke(); path.lineWidth = 1.5; path.stroke()
 }
 
-// a note in the window's bottom-right corner: the shortcut, then the save
-func badge(_ text: String, _ alpha: CGFloat, color: NSColor = .white) {
-    let font = NSFont.systemFont(ofSize: 18, weight: .semibold)
-    let s = NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: color.withAlphaComponent(alpha)])
-    let w = s.size().width + 36
-    let r = NSRect(x: W - 40 - w, y: H - 92, width: w, height: 44)
-    NSColor(white: 1, alpha: 0.14 * alpha).setFill()
-    NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10).fill()
-    s.draw(at: NSPoint(x: r.minX + 18, y: r.minY + 11))
+// the numbered steps along the bottom of the window, the current one lit
+let steps = ["Point at a word", "Double-tap ⌥", "See the translations", "Word saved"]
+func stepBar(_ current: Int) {
+    let gap: CGFloat = 10, left = window.minX + 20, width = (window.width - 40 - gap * 3) / 4
+    for (i, label) in steps.enumerated() {
+        let on = i + 1 == current, done = i + 1 < current
+        let r = NSRect(x: left + CGFloat(i) * (width + gap), y: H - 96, width: width, height: 48)
+        (on ? NSColor(red: 0.5, green: 0.88, blue: 0.69, alpha: 0.22) : NSColor(white: 1, alpha: 0.06)).setFill()
+        NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10).fill()
+        let dot = NSRect(x: r.minX + 12, y: r.midY - 12, width: 24, height: 24)
+        (on ? NSColor(red: 0.5, green: 0.88, blue: 0.69, alpha: 1) : NSColor(white: 1, alpha: done ? 0.45 : 0.18)).setFill()
+        NSBezierPath(ovalIn: dot).fill()
+        let n = NSAttributedString(string: "\(i + 1)", attributes: [.font: NSFont.systemFont(ofSize: 14, weight: .bold), .foregroundColor: NSColor(white: 0.1, alpha: 1)])
+        n.draw(at: NSPoint(x: dot.midX - n.size().width / 2, y: dot.midY - n.size().height / 2))
+        let t = NSAttributedString(string: label, attributes: [.font: NSFont.systemFont(ofSize: 13.5, weight: on ? .semibold : .regular),
+                                                               .foregroundColor: NSColor(white: 1, alpha: on ? 1 : done ? 0.6 : 0.4)])
+        t.draw(at: NSPoint(x: dot.maxX + 8, y: r.midY - t.size().height / 2))
+    }
 }
 
-// One frame: the window with its sentence, and optionally the pointer, the badge, the highlight and the card.
-func frame(_ sc: Scene, pointerAt: NSPoint?, badgeAlpha: CGFloat, card: NSImage?, wordRect: NSRect, saved: Bool = false) -> CGImage {
+// One frame: the window with its sentence and the steps, and optionally the pointer, the highlight and the card.
+func frame(_ sc: Scene, pointerAt: NSPoint?, step: Int, card: NSImage?, wordRect: NSRect) -> CGImage {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(W), pixelsHigh: Int(H), bitsPerSample: 8, samplesPerPixel: 4,
                                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     let ctx = NSGraphicsContext(bitmapImageRep: rep)!
@@ -82,8 +91,7 @@ func frame(_ sc: Scene, pointerAt: NSPoint?, badgeAlpha: CGFloat, card: NSImage?
         card.draw(in: r, from: src, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
         NSGraphicsContext.current?.restoreGraphicsState()
     }
-    if badgeAlpha > 0 { badge("⌥ ⌥  double-tap", badgeAlpha) }
-    if saved { badge("✓ Saved to your vocabulary", 1, color: NSColor(red: 0.5, green: 0.88, blue: 0.69, alpha: 1)) }
+    stepBar(step)
     if let p = pointerAt { pointer(at: p) }
     NSGraphicsContext.current = nil
     return rep.cgImage!
@@ -101,15 +109,15 @@ for sc in scenes {
     let size = (sc.word as NSString).size(withAttributes: attrs)
     let wordRect = NSRect(x: x0, y: textOrigin.y, width: size.width, height: size.height)
     let target = NSPoint(x: wordRect.midX - 2, y: wordRect.midY - 4)
-    frames.append((frame(sc, pointerAt: at, badgeAlpha: 0, card: nil, wordRect: wordRect), 0.7))
+    frames.append((frame(sc, pointerAt: at, step: 1, card: nil, wordRect: wordRect), 0.7))
     for i in 1...12 {  // the pointer glides to the word, easing out
         let t = 1 - pow(1 - Double(i) / 12, 3)
         let p = NSPoint(x: at.x + (target.x - at.x) * t, y: at.y + (target.y - at.y) * t)
-        frames.append((frame(sc, pointerAt: p, badgeAlpha: 0, card: nil, wordRect: wordRect), 0.04))
+        frames.append((frame(sc, pointerAt: p, step: 1, card: nil, wordRect: wordRect), 0.04))
     }
-    frames.append((frame(sc, pointerAt: target, badgeAlpha: 1, card: nil, wordRect: wordRect), 0.5))
-    frames.append((frame(sc, pointerAt: target, badgeAlpha: 1, card: card, wordRect: wordRect), 0.6))
-    frames.append((frame(sc, pointerAt: target, badgeAlpha: 0, card: card, wordRect: wordRect, saved: true), 2.6))
+    frames.append((frame(sc, pointerAt: target, step: 2, card: nil, wordRect: wordRect), 0.8))
+    frames.append((frame(sc, pointerAt: target, step: 3, card: card, wordRect: wordRect), 1.6))
+    frames.append((frame(sc, pointerAt: target, step: 4, card: card, wordRect: wordRect), 1.6))
     at = NSPoint(x: target.x, y: 520)
 }
 
