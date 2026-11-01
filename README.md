@@ -72,6 +72,19 @@ permissions across rebuilds, create a self-signed code-signing certificate named
 → Certificate Assistant → Create a Certificate…, Self Signed Root, Code Signing) before running the script, or pass
 your own with `LOOKUP_SIGN_IDENTITY`.
 
+### Update
+
+```bash
+cd lookup-word
+./update.sh
+```
+
+`update.sh` pulls the latest version and reinstalls it; your settings and words stay as they are. Each new build is a
+new app to macOS unless it is signed with the same certificate, so create the "Lookup Word Signing" certificate once
+(see above) to keep your permissions across updates; without it, the script walks you through granting them again.
+
+### Uninstall
+
 To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh` (add `--purge` to delete your settings and the vocabulary in its own folder too). A vocabulary file you keep elsewhere is never deleted.
 
 ## Use
