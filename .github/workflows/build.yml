@@ -1,0 +1,14 @@
+# Builds Lookup Word on macOS for every push and pull request: the release build install.sh runs, and the debug one.
+# The dictionaries, permissions and launch agent need a real Mac session, so scripts/test-packs.sh and
+# scripts/test-install.sh stay local checks.
+name: Build
+on:
+  push:
+  pull_request:
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift build -c release
+      - run: swift build
