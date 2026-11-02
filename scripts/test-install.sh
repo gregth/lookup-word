@@ -1,14 +1,15 @@
 #!/bin/zsh
 # End-to-end check of install.sh, the app's own uninstall and uninstall.sh, on a separate test copy (its own label, app
 # folder, settings and logs, in a temporary folder), so a real install is left alone; it checks that too at the end.
-# The test copy runs for a few seconds with its menu bar icon off and saving off; its ⌥ shortcut is live meanwhile.
+# The test copy runs for a few seconds without a menu bar icon or welcome window (LOOKUP_QUIET), saving off; its ⌥
+# shortcut is live meanwhile.
 #
 #   ./scripts/test-install.sh
 set -uo pipefail
 root=${0:A:h:h}
 tmp=$(mktemp -d)
 # the app under the home folder: macOS's app registry skips temporary folders, and tccutil finds apps through it
-export LOOKUP_LABEL=io.github.gregth.lookup-word.test LOOKUP_APP_DIR=$HOME/Library/Caches/lookup-word-test LOOKUP_SUPPORT=$tmp/support LOOKUP_LOGS=$tmp/logs
+export LOOKUP_QUIET=1 LOOKUP_LABEL=io.github.gregth.lookup-word.test LOOKUP_APP_DIR=$HOME/Library/Caches/lookup-word-test LOOKUP_SUPPORT=$tmp/support LOOKUP_LOGS=$tmp/logs
 app="$LOOKUP_APP_DIR/Lookup Word.app" plist=$HOME/Library/LaunchAgents/$LOOKUP_LABEL.plist uid=$(id -u)
 real_plist=$HOME/Library/LaunchAgents/io.github.gregth.lookup-word.plist
 real_before=$(shasum "$real_plist" 2>/dev/null; pgrep -f "$HOME/Applications/Lookup Word.app/Contents/MacOS/LookupWord")

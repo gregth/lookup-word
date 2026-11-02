@@ -54,7 +54,7 @@ func lookUp() {
     let mine = shown, mouse = NSEvent.mouseLocation
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { _ in close() }
     if config.closeAfter > 0 { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
-    if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
+    if !AXIsProcessTrusted() {  // only checked: the card's Allow asks macOS, a lookup never does
         present(message("Lookup Word can't notice the keys or read the word you selected yet: it needs the permission macOS calls Accessibility. Click Allow: macOS asks you, and lets you turn it on. Then try again.", action: ("Allow…", "lookupword://open/accessibility")), at: nil)
     } else if let (word, rect, around) = selection() {
         show(word, rect, around, mine)
@@ -429,19 +429,34 @@ if let i = args.firstIndex(of: "--pointer"), i + 1 < args.count {
     exit(0)
 }
 
+// One copy at a time: a second (opened from Finder while the launch agent's runs, or a second install's) brings the
+// running one forward and quits. A copy started by restart() says so (--replacing) and waits for the old one to go.
+if let id = Bundle.main.bundleIdentifier {
+    let others = { NSRunningApplication.runningApplications(withBundleIdentifier: id).filter { $0.processIdentifier != getpid() } }
+    if args.contains("--replacing") {
+        for _ in 0..<50 where !others().isEmpty { Thread.sleep(forTimeInterval: 0.1) }
+    } else if let running = others().first {
+        log("already running (pid \(running.processIdentifier)): this copy quits")
+        running.activate()
+        exit(0)
+    }
+}
+// a test copy (scripts/test-install.sh) runs without a menu bar icon or welcome window
+let quiet = ProcessInfo.processInfo.environment["LOOKUP_QUIET"] != nil
+
 let app = NSApplication.shared
 DispatchQueue.main.async { for p in packs where p.lemmas != nil { _ = lemma("", p) } }  // read lemma lists at start, not on first use
 app.setActivationPolicy(.accessory)
 watchKeys()
-var menu = config.menuBar || !AXIsProcessTrusted() ? Menu() : nil  // shown while it cannot work, even when hidden
+var menu = !quiet && (config.menuBar || !AXIsProcessTrusted()) ? Menu() : nil  // shown while it cannot work, even when hidden
 // the icon kept up to date with the permission: back to the book once it is given (and gone again if the settings
 // hide it), a warning again if it is taken away
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
-    if !AXIsProcessTrusted(), menu == nil { menu = Menu() }
+    if !AXIsProcessTrusted(), menu == nil, !quiet { menu = Menu() }
     if AXIsProcessTrusted(), !config.menuBar, let m = menu { NSStatusBar.system.removeStatusItem(m.item); menu = nil }
     menu?.refresh()
 }
-if shouldWelcome() { DispatchQueue.main.async { showWelcome() } }  // the first launch, or while Accessibility is missing
+if shouldWelcome(), !quiet { DispatchQueue.main.async { showWelcome() } }  // the first launch, or while Accessibility is missing
 
 // Opening the app while it runs (double-clicking it in Applications, Spotlight) shows its settings.
 final class Delegate: NSObject, NSApplicationDelegate {

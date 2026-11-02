@@ -216,9 +216,8 @@ func askPermission(_ pane: String) {
     }
     Asked.shared.panes.insert(pane)
     if pane == "Privacy_ScreenCapture" {
-        _ = CGRequestScreenCaptureAccess()
-        // the request alone may not list the app on recent macOS; a real attempt to capture does (and shows macOS's
-        // prompt), so ask ScreenCaptureKit for the screens once, keeping nothing
+        // one way of asking only (two meant two prompts): a real attempt to capture, keeping nothing, which shows
+        // macOS's prompt and lists the app, where CGRequestScreenCaptureAccess alone may not list it on recent macOS
         Task { _ = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
     }
     else { _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) }
@@ -276,5 +275,6 @@ func restart() {
     }
     let cfg = NSWorkspace.OpenConfiguration()
     cfg.createsNewApplicationInstance = true
+    cfg.arguments = ["--replacing"]  // the new copy waits for this one to quit, instead of deferring to it
     NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: cfg) { _, _ in exit(0) }
 }

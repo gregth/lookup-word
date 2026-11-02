@@ -49,7 +49,8 @@ func selection() -> (String, NSRect?, String)? {
 // in Chrome's web pages): a 640×90 pt capture around the pointer, macOS's text recognition (Vision), and the word
 // whose box holds the pointer, with the recognised text around it for the language.
 func byOCR(_ mouse: NSPoint) async -> (Reading, NSRect)? {
-    guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else { log("no Screen Recording"); return nil }
+    // only checked: macOS is asked when the user clicks Allow, never by a lookup (one prompt at a time)
+    guard CGPreflightScreenCaptureAccess() else { log("no Screen Recording"); return nil }
     guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main,
           let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
           let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),

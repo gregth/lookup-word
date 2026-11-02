@@ -22,6 +22,7 @@ env="<key>LOOKUP_AGENT</key><string>1</string>"  # marks the launch agent's copy
 
 [[ -n ${LOOKUP_SUPPORT:-} ]] && env+="<key>LOOKUP_SUPPORT</key><string>$LOOKUP_SUPPORT</string>"
 [[ -n ${LOOKUP_LOGS:-} ]] && env+="<key>LOOKUP_LOGS</key><string>$LOOKUP_LOGS</string>"
+[[ -n ${LOOKUP_QUIET:-} ]] && env+="<key>LOOKUP_QUIET</key><string>1</string>"
 
 if ! command -v swift >/dev/null; then
   echo "Swift is missing: install Apple's Command Line Tools with  xcode-select --install  and run this again." >&2
