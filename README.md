@@ -1,6 +1,6 @@
 # <img src="docs/icon.png" width="44" height="44" alt="" align="top"> Lookup Word
 
-Look Up for people who live in more than one language. Select a word anywhere on your Mac, or just point at it, and
+Like Look Up, for people who live in more than one language. Select a word anywhere on your Mac, or just point at it, and
 press the ⌥ Option key twice; or press ⌃⌘L and type it. You never say which language it is in. A card shows the word, its pronunciation, its translation into each of your other languages with a 🔈 to hear it, and the
 full dictionary entries. Every word you look up is saved to a vocabulary file, so your word list builds itself from
 what you actually read.
