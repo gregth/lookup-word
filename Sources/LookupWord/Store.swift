@@ -11,11 +11,14 @@ protocol VocabularyStore {
 func makeStore(_ c: StoreConfig) -> VocabularyStore {
     if configBroken { return BrokenStore() }
     switch c.type {
-    case "json": return JSONStore(saveDate: c.saveDate, url: URL(fileURLWithPath: expand(c.path ?? Paths.support.appendingPathComponent("vocabulary.json").path)))
+    case "json": return JSONStore(c)
     case "none": return NoStore()
     default: return MarkdownStore(c)
     }
 }
+
+// the path in the settings, nil when unset or blank (the default file then)
+func storePath(_ c: StoreConfig) -> String? { c.path.map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 } }
 
 struct NoStore: VocabularyStore {
     var url: URL? { nil }
@@ -32,7 +35,11 @@ struct BrokenStore: VocabularyStore {
 struct JSONStore: VocabularyStore {
     struct Word: Codable { var word, language, meaning: String; var translations: [String: String]; var added: String? }
     let saveDate: Bool, file: URL
-    init(saveDate: Bool, url: URL) { self.saveDate = saveDate; file = url }
+    init(_ c: StoreConfig) {
+        saveDate = c.saveDate
+        // as the Markdown store: an empty path is the default, and a symlinked file is saved where it points
+        file = URL(fileURLWithPath: expand(storePath(c) ?? Paths.support.appendingPathComponent("vocabulary.json").path)).resolvingSymlinksInPath()
+    }
     var url: URL? { file }
 
     func save(_ e: Entry) -> String {
@@ -65,9 +72,8 @@ struct MarkdownStore: VocabularyStore {
     let file: URL, saveDate: Bool
     init(_ c: StoreConfig) {
         saveDate = c.saveDate
-        let path = c.path.map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 }
         // a symlinked note is saved where it points, not replaced by a plain file
-        file = URL(fileURLWithPath: expand(path ?? Paths.support.appendingPathComponent("Vocabulary.md").path)).resolvingSymlinksInPath()
+        file = URL(fileURLWithPath: expand(storePath(c) ?? Paths.support.appendingPathComponent("Vocabulary.md").path)).resolvingSymlinksInPath()
     }
     var url: URL? { file }
     var name: String { file.lastPathComponent }
