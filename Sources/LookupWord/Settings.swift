@@ -320,8 +320,8 @@ func enableDictionaries(_ ids: [String]) {
 
 // A restart with the new settings. The launch agent's copy (install.sh marks it with LOOKUP_AGENT) asks launchd to
 // restart its job (kickstart -k), at once; a helper left to reopen the app afterwards would die with it, since launchd
-// ends every process of the job. Any other copy (opened from Finder, Terminal, swift run), or a kickstart refused,
-// opens a new copy of itself before this one quits.
+// ends every process of the job. Any other copy (opened from Finder, Terminal, swift run) opens a new copy of itself
+// before this one quits.
 func restart() {
     if ProcessInfo.processInfo.environment["LOOKUP_AGENT"] != nil, isInstalledApp {
         let p = Process()
@@ -330,7 +330,12 @@ func restart() {
         if (try? p.run()) != nil { p.waitUntilExit() }
         // launchctl answers before launchd has stopped this copy: wait to be stopped, rather than also opening a new
         // copy below (which left two running, two menu bar icons)
-        if p.terminationStatus == 0 { Thread.sleep(forTimeInterval: 10); exit(1) }
+        if p.terminationStatus == 0 { Thread.sleep(forTimeInterval: 10) }
+        // a kickstart refused, or this copy not stopped: quit with a failure, which launchd's KeepAlive restarts. Not a
+        // new copy opened below: this copy then quit with success, launchd left its job stopped, and the new copy ran
+        // outside it, where the next install could not stop it (his Restart clicks, 2026-11-02, 15:06 and 16:00)
+        log("restart: launchctl kickstart gave \(p.terminationStatus); quitting for launchd to start it again")
+        exit(1)
     }
     let cfg = NSWorkspace.OpenConfiguration()
     cfg.createsNewApplicationInstance = true
