@@ -19,11 +19,12 @@ var typeShortcutTaken = false  // macOS refused it: another app has it
 
 final class TypeBox: NSPanel, NSTextFieldDelegate {
     let field = NSTextField()
+    let pin = NSButton()
+    // pinned, a click outside leaves the box and its card open; Escape still closes them (his ask, 2026-11-02)
+    var pinned = false { didSet { showPin() } }
     init() {
         let size = NSSize(width: 460, height: 56)
-        let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main!
-        let origin = NSPoint(x: screen.visibleFrame.midX - size.width / 2, y: screen.visibleFrame.maxY - size.height - screen.visibleFrame.height * 0.18)
-        super.init(contentRect: NSRect(origin: origin, size: size), styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+        super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
                    backing: .buffered, defer: false)
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
@@ -39,15 +40,34 @@ final class TypeBox: NSPanel, NSTextFieldDelegate {
         icon.image = NSImage(systemSymbolName: "text.magnifyingglass", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 18, weight: .regular))
         icon.contentTintColor = .secondaryLabelColor
-        field.frame = NSRect(x: 50, y: 14, width: size.width - 66, height: 28)
+        field.frame = NSRect(x: 50, y: 14, width: size.width - 98, height: 28)
         field.placeholderString = "Type a word in any of your languages, then press Return"
         field.font = .systemFont(ofSize: 20)
         field.isBordered = false; field.drawsBackground = false; field.focusRingType = .none
         field.delegate = self
-        glass.addSubview(icon); glass.addSubview(field)
+        pin.frame = NSRect(x: size.width - 44, y: 14, width: 28, height: 28)
+        pin.isBordered = false; pin.bezelStyle = .regularSquare; pin.imagePosition = .imageOnly
+        pin.target = self; pin.action = #selector(togglePin)
+        showPin()
+        glass.addSubview(icon); glass.addSubview(field); glass.addSubview(pin)
         contentView = glass
     }
+    @objc func togglePin() { pinned.toggle() }
+    func showPin() {
+        pin.image = NSImage(systemSymbolName: pinned ? "pin.fill" : "pin", accessibilityDescription: pinned ? "Unpin" : "Pin")?
+            .withSymbolConfiguration(.init(pointSize: 15, weight: .regular))
+        pin.contentTintColor = pinned ? .controlAccentColor : .secondaryLabelColor
+        pin.toolTip = pinned ? "Pinned: stays open when you click elsewhere" : "Pin: keep it open when you click elsewhere"
+    }
     override var canBecomeKey: Bool { true }
+
+    // centred, a fifth of the way down the screen the pointer is on, at every open (his report, 2026-11-02: "did not
+    // open in the center"; the box is made once, so placing it only then left it where it first opened or was dragged)
+    func place() {
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main!
+        let v = screen.visibleFrame
+        setFrameOrigin(NSPoint(x: v.midX - frame.width / 2, y: v.maxY - frame.height - v.height * 0.18))
+    }
 
     func control(_ c: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
         if sel == #selector(NSResponder.cancelOperation(_:)) { closeTypeBox(); return true }
@@ -64,11 +84,15 @@ var typeBox: TypeBox?
 func showTypeBox() {
     close()  // a card already open
     if typeBox == nil { typeBox = TypeBox() }
+    typeBox?.place()
+    // a click outside closes it, before a word is typed too (his ask, 2026-11-02)
+    monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in closeUnlessPinned() }
     NSApp.activate(ignoringOtherApps: true)
     typeBox?.makeKeyAndOrderFront(nil)
     typeBox?.field.selectText(nil)  // the last word, selected: type over it or press Return again
 }
 func closeTypeBox() { typeBox?.orderOut(nil); close() }
+func closeUnlessPinned() { if typeBox?.pinned != true { closeTypeBox() } }
 
 // The typed word's card, hanging below the box; the text's language is the word's own (there is no text around it).
 func lookUpTyped(_ word: String, below box: NSRect) {
@@ -76,8 +100,8 @@ func lookUpTyped(_ word: String, below box: NSRect) {
     shown += 1
     let mine = shown
     // a click outside the box and the card closes both; keys go to the box, so typing the next word just works
-    monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in closeTypeBox() }
-    if config.closeAfter > 0 { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
+    monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in closeUnlessPinned() }
+    if config.closeAfter > 0, typeBox?.pinned != true { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
     show(word, NSRect(x: box.midX - 1, y: box.minY - 1, width: 2, height: 2), word, mine, highlight: false)
 }
 
