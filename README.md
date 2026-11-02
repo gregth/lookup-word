@@ -180,9 +180,18 @@ it read, writes through a temporary file renamed over it, and keeps the last 30 
 
 ## Languages
 
-English, Dutch and Greek are tested. Each language is a folder in [packs/](packs/): a `pack.json` that names its
-dictionaries, voice and grammar labels, plus an optional lemma list. A language can join when Dictionary.app has a
-dictionary between it and English. To add one, see [CONTRIBUTING.md](CONTRIBUTING.md).
+| Language | On by default | Tested by |
+|---|---|---|
+| 🇬🇧 English | always: the others translate through it | its author's daily use |
+| 🇳🇱 Dutch | yes | its author's daily use |
+| 🇬🇷 Greek | yes | its author, a native speaker |
+| 🇫🇷 French | no: turn it on in Settings | **community**: test words only, no native speaker yet |
+| 🇩🇪 German | no: turn it on in Settings | **community**: test words only, no native speaker yet |
+| 🇪🇸 Spanish | no: turn it on in Settings | **community**: test words only, no native speaker yet |
+
+Each language is a folder in [packs/](packs/): a `pack.json` that names its dictionaries, voice and grammar labels,
+plus an optional lemma list. A language can join when Dictionary.app has a dictionary between it and English. To add
+one, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Screen reading uses macOS's text recognition, which reads some languages and not others (Greek among those it doesn't
 read). For Greek, Lookup Word maps the look-alike letters it gets back to Greek, and checks the reading against the
@@ -194,10 +203,12 @@ app's own text where the app shares it (Chrome and Electron apps do).
 - Languages without a dictionary between them translate through English, so a translation can be off: the English
   word has meanings of its own, and the other language may pick one the original never had (Dutch *zetten* → *set,
   put* → Greek *κάνω, προκαλώ*, "make, cause"). Check the entry when it matters.
+- French opens its most common verbs (*aller*, *être*, *avoir*, *venir*) with examples, so the card shows an example
+  where a plain translation belongs; the entry below it has the meaning.
 - Hyphenated compounds and numbers read off the screen come back as one token.
 - Screen reading needs readable contrast; tiny or stylised text may misread.
-- Dictionary.app's list of dictionaries comes through two private calls (stable for years, but undocumented), which
-  also keeps the app out of the Mac App Store.
+- Dictionary.app's list of dictionaries, and every entry for a word (French *pain* is also English *pain*), come
+  through private calls (stable for years, but undocumented), which also keeps the app out of the Mac App Store.
 
 ## Troubleshooting
 

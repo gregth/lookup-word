@@ -1,0 +1,25 @@
+{
+  "code": "es",
+  "name": "Spanish",
+  "flag": "🇪🇸",
+  "voice": "es-ES",
+  "monolingual": "Spanish",
+  "bilingual": "Spanish - English",
+  "dictionaryIds": ["com.apple.dictionary.es.DGLEV", "com.apple.dictionary.OxfordSpanish"],
+  "recognizer": "es",
+  "ocr": ["es-ES"],
+  "spellChecker": "es",
+  "verb": { "entryPattern": "\\s(transitive|intransitive|pronominal|copular|auxiliary|impersonal) verb\\b", "prefix": 80 },
+  "verbLabels": ["intransitive verb", "transitive verb", "pronominal verb", "auxiliary verb", "verb"],
+  "gloss": {
+    "labels": ["masculine", "feminine", "noun", "adjective", "adverb", "invariable", "plural", "conjunction", "preposition",
+               "pronoun", "interjection", "uncountable", "countable", "and"],
+    "variants": [
+      ["^([^\\s|]+) [1-9](?= (\\([^)]*\\) )?(A )?(adjective|adverb|masculine|feminine|noun|transitive|intransitive|pronominal|copular|auxiliary|impersonal|conjunction|preposition|pronoun|interjection|article|numeral|past participle)\\b)", "$1"],
+      ["(\\s1(?: (?:\\([^)]*\\)|uncountable|countable|and))*) a (?=\\S)", "$1 "],
+      ["\\s/\\s[^(▸/]*\\((?:feminine|masculine)\\)", ""],
+      ["([›»][^‹«▸]*?\\p{L}[^‹«▸]*?)\\s*[‹«][^›»]*[›»]", "$1 ▸"],
+      ["[‹«][^›»]*[›»]\\s*", ""]
+    ]
+  }
+}

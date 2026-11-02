@@ -24,12 +24,25 @@ func define(_ word: String, in name: String?, follow: Bool = true) -> String? {
     let s = word as NSString
     let t = DCSCopyTextDefinition(unsafeBitCast(d, to: DCSDictionary.self), s, CFRange(location: 0, length: s.length))?
         .takeRetainedValue() as String?
-    // an entry that only points elsewhere ("ρωτώ ▶ → ΕΡΩΤΩ", "πάω vi ▶ → πηγαίνω"): the entry it points to, once
-    if follow, let t, t.count < 80, let r = t.range(of: #"▶\s*→\s*([^\s,.;]+)"#, options: .regularExpression) {
-        let target = String(t[r]).replacingOccurrences(of: #"^▶\s*→\s*"#, with: "", options: .regularExpression).lowercased()
+    guard follow, let t else { return t }
+    // an entry that only points elsewhere ("ρωτώ ▶ → ΕΡΩΤΩ", "πάω vi ▶ → πηγαίνω", "größer ▶ groß",
+    // "estoy ▶ see estar 1"): the entry it points to, once
+    if t.count < 80, let target = group(t, #"▶\s*(?:→|see|ver)?\s*([^\s,.;\d]+)"#) {
+        return define(target.lowercased(), in: name, follow: false) ?? t
+    }
+    // an inflected form's stub that names its verb ("ging | ɡɪŋ | 1.u. 3. Pers.Sg.Prät. v. gehen", "gemacht A
+    // 2. Part. v. machen B adjective"): that verb's entry
+    if let target = group(String(t.prefix(100)), #"\b(?:Pers|Part)\.[^▸]{0,40}?\bv\.\s+(\p{L}+)\d*(?:\s+B\s|\s*$)"#) {
         return define(target, in: name, follow: false) ?? t
     }
     return t
+}
+
+// the first capture group of a pattern's first match
+func group(_ s: String, _ pattern: String) -> String? {
+    guard let re = try? NSRegularExpression(pattern: pattern), let m = re.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
+          let r = Range(m.range(at: 1), in: s) else { return nil }
+    return String(s[r])
 }
 
 func matches(_ s: String, _ pattern: String) -> Bool { s.range(of: pattern, options: .regularExpression) != nil }
@@ -37,8 +50,17 @@ func replacing(_ s: String, _ pattern: String, _ with: String) -> String {
     s.replacingOccurrences(of: pattern, with: with, options: .regularExpression)
 }
 
-// A bilingual dictionary's English headwords carry a pronunciation (| rʌn |); its other language's do not.
-func englishSide(_ t: String?) -> Bool { t.map { matches($0, #"^[^|\n]{1,60}\| [^|]+ \|"#) } ?? false }
+// A bilingual dictionary's English headwords carry a pronunciation (| rʌn |); in Dutch - English and Greek - English
+// its other language's do not. Oxford's French, German and Spanish ones mark the English pronunciation (| BrE haʊs,
+// AmE haʊs |), and French and German give their own headwords one too (maison | mɛzɔ̃ |): in a dictionary whose
+// "house" carries the mark, only the mark tells an English headword.
+let marksBrE: [String: Bool] = dictionaries.keys.reduce(into: [:]) { out, name in
+    out[name] = define("house", in: name, follow: false).map { matches($0, #"^[^|\n]{1,60}\| [^|]*\b(BrE|AmE)\b"#) } ?? false
+}
+func englishSide(_ t: String?, in dictionary: String?) -> Bool {
+    guard let t else { return false }
+    return matches(t, marksBrE[dictionary ?? ""] == true ? #"^[^|\n]{1,60}\| [^|]*\b(BrE|AmE)\b"# : #"^[^|\n]{1,60}\| [^|]+ \|"#)
+}
 
 var wanted: String?  // the word being looked up, for gloss's derivatives
 
@@ -147,7 +169,7 @@ func isVerb(_ word: String, _ p: Pack, _ entry: String?) -> Bool {
 func via(_ english: String, in p: Pack, verb: Bool = false) -> String {
     for item in english.split(separator: ",").prefix(3) {
         let w = replacing(String(item), #"^\s*(to|a|an|the)\s+"#, "").trimmingCharacters(in: .whitespaces)
-        guard let t = define(w, in: p.bilingual), englishSide(t), t.lowercased().hasPrefix(w.lowercased()) else { continue }
+        guard let t = define(w, in: p.bilingual), englishSide(t, in: p.bilingual), t.lowercased().hasPrefix(w.lowercased()) else { continue }
         let g = gloss(verb ? verbPart(t, p) : t, target: p)
         if !g.isEmpty { return g }
     }
@@ -218,4 +240,34 @@ func baseForm(_ w: String, _ p: Pack) -> String {
     let own = define(w, in: p.bilingual) ?? define(w, in: p.monolingual)
     if own.map({ fold(headword($0)) != fold(w) }) ?? true, let b = deeperBase(w, p) { return b }
     return w
+}
+
+// Every entry a dictionary has for the word, as text: DCSCopyTextDefinition returns one, and in French - English
+// the English "pain" hides the French "pain" (bread). Private, like the listing: DCSCopyRecordsForSearchString and
+// DCSRecordCopyData, whose version 3 is the same plain text.
+typealias RecordsFn = @convention(c) (AnyObject, CFString, CFIndex, CFIndex) -> Unmanaged<CFArray>?
+typealias RecordTextFn = @convention(c) (AnyObject, CFIndex) -> Unmanaged<CFString>?
+func records(_ word: String, in name: String?) -> [String] {
+    let h = dlopen(nil, RTLD_NOW)
+    guard let name, let d = dictionaries[name], let r = dlsym(h, "DCSCopyRecordsForSearchString"), let c = dlsym(h, "DCSRecordCopyData"),
+          let recs = unsafeBitCast(r, to: RecordsFn.self)(d, word as CFString, 0, 0)?.takeRetainedValue() as? [AnyObject] else { return [] }
+    return recs.compactMap { unsafeBitCast(c, to: RecordTextFn.self)($0, 3)?.takeRetainedValue() as String? }
+}
+
+// X's own entry in its X - English dictionary for the word: the one DCSCopyTextDefinition gives when it is X's, else
+// X's among all the word's records (its own headword first: "court" is short, not courir's form). An entry whose first
+// section only points elsewhere ("blanche A adjective ▶ blanc A B feminine noun …", "vu A past participle vue ▶ voir
+// B adjective …"): the entry it points to.
+func ownEntry(_ word: String, _ t: String?, _ p: Pack) -> String? {
+    guard let t, let bilingual = p.bilingual else { return nil }
+    var own: String? = t
+    if englishSide(t, in: bilingual) {
+        let xs = records(word, in: bilingual).filter { !englishSide($0, in: bilingual) }
+        own = xs.first { matches($0.lowercased(), "^" + NSRegularExpression.escapedPattern(for: word.lowercased()) + #"\b"#) } ?? xs.first
+    }
+    if let e = own, let target = group(String(e.prefix(120)), #"^[^|▶]{1,40}(?:\|[^|]*\|)?\s*(?:A )?(?:(?:masculine|feminine) )?(?:plural )?(?:adjective|past participle|noun)(?: \p{L}+)?(?: \|[^|]*\|)? ▶ ([\p{L}œ'-]+)"#),
+       let f = define(target, in: bilingual), !englishSide(f, in: bilingual) {
+        return f
+    }
+    return own
 }

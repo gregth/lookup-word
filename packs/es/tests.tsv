@@ -1,0 +1,65 @@
+# word	hint	expected text in the entry. Taken from lookups checked against Lookup Word 2026-11-02 (community: not yet checked by a native speaker).
+casa	es	en: house
+casas	es	en: house
+mesa	es	en: table
+libros	es	en: book
+ciudades	es	en: town, city
+árboles	es	en: tree
+mujeres	es	en: woman
+agua	es	en: water
+gato	es	en: cat
+zapatos	es	en: shoe
+hablar	es	en: to speak
+hablamos	es	en: to speak
+hablaron	es	nl: spreken
+hablé	es	el: μιλώ
+comí	es	en: to eat
+tengo	es	en: to have
+tuvieron	es	en: to have
+hice	es	en: to make
+haciendo	es	nl: maken
+están	es	en: to be
+fui	es	en: to be
+salgo	es	en: to come out
+durmió	es	en: to sleep
+oyó	es	en: to hear
+leyendo	es	en: to read
+conozco	es	en: to know
+vuelvo	es	en: to come back, to go back
+rojo	es	en: red
+rojas	es	en: red
+bonita	es	en: pretty, nice
+hermosas	es	en: beautiful, lovely
+pequeñas	es	en: small
+felices	es	en: happy
+grandes	es	en: large, big
+café	es	en: coffee
+canción	es	en: song
+corazón	es	el: καρδιά
+también	es	en: too, as well
+mañana	es	en: tomorrow
+año	es	en: year
+rápido	es	en: quickly, fast
+come	en	es: venir
+once	en	es: una vez
+red	en	es: rojo
+house	en	es: casa
+dog	en	es: perro, macho
+hond	nl	es: perro
+σπίτι	el	es: casa
+# Blocked on code (Spanish - English answers with its English entry, a first homograph or a ▶ see redirect); expected meanings, to enable once fixed:
+# once	es	en: eleven
+# red	es	en: net
+# pie	es	en: foot
+# come	es	en: to eat
+# mar	es	en: sea
+# sol	es	en: sun
+# perro	es	en: dog
+# vivimos	es	en: to be alive
+# dije	es	en: to say
+# quiero	es	en: to love
+# fue	es	en: to go
+# estoy	es	en: to be
+# vamos	es	en: to go
+# buenas	es	en: good
+# gente	es	en: people
