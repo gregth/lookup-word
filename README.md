@@ -86,6 +86,10 @@ lands in my vocabulary file without my doing anything. What I look up while work
   Settings…** (⌘,) and tick them: *Oxford Dictionary of English*, plus each language's own and its X - English
   dictionary (*Dutch* and *Dutch - English*, say).
 
+Lookup Word reads the dictionaries through parts of Apple's Dictionary Services that Apple doesn't document
+(`DCSCopyRecordsForSearchString`, `DCSRecordCopyData`, `DCSCopyAvailableDictionaries`). A future
+macOS may change them and break lookups until Lookup Word is updated, and they keep it out of the Mac App Store.
+
 ## Install
 
 ```bash
@@ -307,6 +311,19 @@ Lookup Word is a personal project, shared as is, with no warranty and no support
 any loss or damage from using it, including lost or changed notes: keep your own backups of anything you point it at.
 It isn't affiliated with Apple or with any dictionary publisher. The dictionary content it shows comes from the
 dictionaries installed on your Mac and belongs to their publishers. The [licence](LICENSE) states the legal terms.
+
+The screenshots, GIFs and [sample vocabulary](docs/sample-vocabulary.md) show short excerpts of macOS's dictionaries,
+to illustrate what the app does. Their copyright stays with their publishers:
+
+- *Oxford Dictionary of English*: © 2010, 2025 Oxford University Press.
+- *Prisma woordenboek Nederlands* (© 2010, 2023) and *Prisma Handwoordenboek Engels* (© 2010, 2013): Uitgeverij
+  Unieboek | Het Spectrum bv, under licence to Oxford University Press.
+- *Λεξικό της κοινής νεοελληνικής* (Dictionary of Standard Modern Greek): © 2010, 2022 Aristotle University of
+  Thessaloniki, under licence to Oxford University Press.
+- *Stavropoulos Oxford Greek-English Learner's Dictionary*: © 1989, 2008, 2023 Nikolaos Stavropoulos, under licence to
+  Oxford University Press.
+
+If you hold rights to any of it and want an image changed or removed, open an issue.
 
 ## Licence
 
