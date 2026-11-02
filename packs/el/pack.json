@@ -11,7 +11,7 @@
   "ocr": ["ru-RU"],
   "spellChecker": "el",
   "verb": { "endings": ["ω", "ώ", "μαι"] },
-  "verbLabels": ["vt", "vi", "v"],
+  "verbLabels": ["vti", "vt", "vi", "v"],
   "lemmas": "lemmas.tsv.xz",
   "gloss": {
     "labels": ["το", "η", "ο"],

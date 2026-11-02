@@ -16,6 +16,7 @@
                "intransitive", "reflexive", "auxiliary", "modal", "verb", "irregular", "or", "preposition",
                "conjunction", "pronoun", "interjection"],
     "variants": [
+      ["^([^\\s|]+) [1-9](?= (\\([^)]*\\) )?(A )?(adjective|adverb|masculine|feminine|noun|transitive|intransitive|pronominal|copular|auxiliary|impersonal|conjunction|preposition|pronoun|interjection|article|numeral|past participle)\\b)", "$1"],
       ["^(\\S+) (\\| [^|]+ \\|) [^▸]{0,50}\\bv\\. (\\p{L}+)\\d*\\s*$", "$1 $2 → $3"],
       ["^(\\p{L}+) \\d(?= [A-Z] )", "$1"],
       [" ?\\bGen\\. \\S+( Pl\\. [^\\s▸]+)?", ""],

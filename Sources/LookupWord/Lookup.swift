@@ -94,9 +94,16 @@ func entry(_ raw: String, hint: String) -> Entry? {
     if lang.isEnglish {
         // each other language from its X - English entry for the English word (its verb part, for a verb)
         let verb = isVerb(w, english, en)
+        let noun = en.map { matches($0, #"^[^|]+\|[^|]+\|\s*noun\b"#) } ?? false  // Oxford's first part of speech
+        // Oxford's first verb sense takes no object: "[no object]" before any "[with object]"
+        let intransitive = verb && (en.map { e in
+            guard let no = e.range(of: "[no object]") else { return false }
+            return e.range(of: "[with object]").map { no.lowerBound < $0.lowerBound } ?? true
+        } ?? false)
         let tr = others.map { p -> (String, String) in
             guard let t = bil[p.code], englishSide(t, in: p.bilingual) else { return (p.code, "") }
-            return (p.code, gloss(verb ? verbPart(t, p) : t, target: p))
+            // (the entries searched by the dictionary's headword: "stopped" is stop's)
+            return (p.code, gloss(verb ? verbEntry(t, word, p, intransitive: intransitive) : t, target: p, from: p, noun: noun))
         }
         let sections = [(english.monolingual ?? "English", en)] + others.map { p in (title(p.bilingual ?? p.name), bil[p.code]) }
         return Entry(lang: "en", word: word, ipa: ipa, tr: tr, sections: sections.compactMap { n, t in t.map { (n, $0) } },
@@ -104,10 +111,14 @@ func entry(_ raw: String, hint: String) -> Entry? {
     }
     // another language: English from its X - English entry, then each of the rest through that English
     let b = bilX[lang.code]
-    var inEnglish = gloss(b)
+    var inEnglish = gloss(b, from: lang)
     if lang.stripHints == true { inEnglish = withoutHints(inEnglish, lang) }
     let verb = isVerb(word, lang, lang.script == nil ? b : bil[lang.code])
-    let tr = [("en", inEnglish)] + others.filter { $0.code != lang.code }.map { p in (p.code, via(inEnglish, in: p, verb: verb)) }
+    // a noun in its own dictionary (boek: "znw boek"), so the English word's noun part is the one to translate
+    let noun = !verb && (b.map(opensAsNoun) ?? false), describing = !verb && (b.map(opensAsDescribing) ?? false)
+    let tr = [("en", inEnglish)] + others.filter { $0.code != lang.code }.map { p in
+        (p.code, via(inEnglish, in: p, verb: verb, noun: noun, describing: describing))
+    }
     let sections = [(title(lang.bilingual ?? lang.name), b), (lang.monolingual ?? lang.name, mono[lang.code])]
     return Entry(lang: lang.code, word: word, ipa: ipa, tr: tr, sections: sections.compactMap { n, t in t.map { (n, $0) } },
                  meaning: inEnglish)

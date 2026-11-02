@@ -32,6 +32,7 @@ struct Pack: Decodable {
     var spellChecker: String?  // NSSpellChecker language, for correcting a misread word
     var verb: VerbRule?
     var verbLabels: [String]?  // the labels that open the verb part of an English entry in this X - English dictionary
+    var intransitiveLabels: [String]?  // of those, the intransitive one(s), preferred for a verb whose first sense takes no object
     var stripHints: Bool?  // its X - English translations may start with X words as hints ("gaan walk"): drop them
     var lemmas: String?  // form ⇥ lemma, .tsv or .tsv.xz, for languages whose dictionaries do not lemmatise
     var gloss: GlossRules?
@@ -39,6 +40,7 @@ struct Pack: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case code, name, flag, voice, monolingual, bilingual, dictionaryIds, script, recognizer, ocr, spellChecker, verb, verbLabels,
+             intransitiveLabels,
              stripHints, lemmas, gloss
     }
 
@@ -90,8 +92,27 @@ func pack(_ code: String) -> Pack? { packs.first { $0.code == code } }
 var others: [Pack] { packs.filter { !$0.isEnglish } }
 
 // Gloss rules of every pack in force, merged: a dictionary's text can carry another language's labels.
-let glossLabels: Set<String> = Set(packs.flatMap { $0.gloss?.labels ?? [] })
-let glossInner: Set<String> = Set(packs.flatMap { $0.gloss?.inner ?? [] })
-let glossCuts: [String] = ["▸", "▶", "•"] + packs.flatMap { $0.gloss?.cuts ?? [] }
-let glossNotes: [String] = packs.flatMap { $0.gloss?.grammarNotes ?? [] }
-let glossVariants: [(String, String)] = packs.flatMap { $0.gloss?.variants ?? [] }.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
+// The gloss rules for an entry from one pack's dictionary. Labels (dropped words) are every pack's: the Oxford French,
+// Spanish and German dictionaries share their English labels ("A noun", "transitive verb", "uncountable") and each
+// pack lists only some, and a set has no order. Rewrites (variants), cuts and grammar notes run in order and are
+// written for one dictionary's layout, so those are English's and that pack's own: turning a language on never changes
+// how another language's entries are rewritten.
+struct GlossRuleSet {
+    var labels: Set<String>, inner: Set<String>, cuts: [String], notes: [String], variants: [(String, String)]
+    init(_ ps: [Pack]) {
+        let g = ps.compactMap(\.gloss), all = packs.compactMap(\.gloss)
+        labels = Set(all.flatMap { $0.labels ?? [] })
+        inner = Set(all.flatMap { $0.inner ?? [] })
+        cuts = ["▸", "▶", "•"] + g.flatMap { $0.cuts ?? [] }
+        notes = g.flatMap { $0.grammarNotes ?? [] }
+        variants = g.flatMap { $0.variants ?? [] }.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
+    }
+}
+var ruleSets: [String: GlossRuleSet] = [:]
+func glossRules(_ p: Pack?) -> GlossRuleSet {
+    let key = p?.code ?? "en"
+    if let r = ruleSets[key] { return r }
+    let r = GlossRuleSet([english] + (p.map { $0.isEnglish ? [] : [$0] } ?? []))
+    ruleSets[key] = r
+    return r
+}

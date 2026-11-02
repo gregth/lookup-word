@@ -50,9 +50,10 @@ dictionary is optional but improves the card.
 | `spellChecker` | The `NSSpellChecker` language used to correct misread words. |
 | `verb` | How to tell a verb: `entryPattern` (a regex on its entry, within `prefix` characters) or `endings`. |
 | `verbLabels` | The labels that open the verb part of an English entry in this X - English dictionary. Lookup Word uses them to translate *can* the verb, not *can* the tin. |
+| `intransitiveLabels` | Optional: of those, the intransitive one(s) (Dutch `onoverg`). Preferred when the English verb's first sense takes no object (*run* → *lopen*, not *laten lopen*). |
 | `stripHints` | `true` when X - English translations start with X words as hints ("gaan walk"). |
 | `lemmas` | A `form⇥lemma` list (`.tsv` or `.tsv.xz`) for languages whose dictionaries don't find base forms. [simplemma](https://github.com/adbar/simplemma) has lists for about 50 languages. Keep its licence notice next to the file. |
-| `gloss` | Grammar labels to drop from translations: `labels` at the start, `inner` anywhere, `cuts` to stop at, `grammarNotes` (abbreviations ending in `.` before the meaning), `variants` (regex and replacement pairs). |
+| `gloss` | Grammar labels to drop from translations: `labels` at the start, `inner` anywhere, `cuts` to stop at, `grammarNotes` (abbreviations ending in `.` before the meaning), `variants` (regex and replacement pairs). | `labels` and `inner` are shared by every pack in use (several Oxford dictionaries use the same English labels); `cuts`, `grammarNotes` and `variants` apply only to entries from this pack's dictionary, so one pack's rewrites never change another's.
 
 ### 3. Test it
 

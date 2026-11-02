@@ -13,7 +13,7 @@
   "verbLabels": ["transitive verb", "intransitive verb", "modal verb", "auxiliary verb", "verb"],
   "stripHints": true,
   "gloss": {
-    "labels": ["A", "B", "C", "D", "masculine", "feminine", "noun", "adjective", "invariable", "transitive", "intransitive", "auxiliary", "pronominal", "verb", "adverb", "plural"],
+    "labels": ["formal", "literal", "humorous", "informal", "figurative", "A", "B", "C", "D", "masculine", "feminine", "noun", "adjective", "invariable", "transitive", "intransitive", "auxiliary", "pronominal", "verb", "adverb", "plural"],
     "cuts": ["before n"],
     "variants": [
       ["\\|\\s*A adjective invariable .*?\\sB (?=(?:masculine|feminine) noun)", "| "],

@@ -9,6 +9,7 @@ final class SettingsModel: ObservableObject {
 
     @Published var languages: Set<String>
     @Published var hotkey: String
+    @Published var typeKey: String
     @Published var menuBar: Bool
     @Published var closeAfter: Double
     @Published var storeType: String
@@ -16,15 +17,16 @@ final class SettingsModel: ObservableObject {
     @Published var saveDate: Bool
     @Published var enabling: Set<String> = []  // languages whose dictionaries are downloading
     let available: [Language]
-    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool }
-    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate) }
-    var saved = Snapshot(languages: [], hotkey: "", menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false)
+    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var typeKey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool }
+    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, typeKey: typeKey, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate) }
+    var saved = Snapshot(languages: [], hotkey: "", typeKey: "", menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false)
 
     init() {
         // what the file says now (it may have changed since launch), falling back to the settings in force
         let file = (try? Data(contentsOf: Paths.config)).flatMap { try? JSONDecoder().decode(Config.self, from: $0) } ?? config
         languages = Set(file.languages + ["en"])
         hotkey = ["option", "control", "command", "shift"].contains(file.hotkey) ? file.hotkey : "option"
+        typeKey = typeShortcuts.contains { $0.id == file.typeShortcut } ? file.typeShortcut : typeShortcuts[0].id
         menuBar = file.menuBar
         closeAfter = file.closeAfter
         storeType = file.store.type
@@ -50,6 +52,7 @@ final class SettingsModel: ObservableObject {
         let order = available.map(\.code).filter { languages.contains($0) }
         dict["languages"] = ["en"] + order.filter { $0 != "en" }
         dict["hotkey"] = hotkey
+        dict["typeShortcut"] = typeKey
         dict["screenReading"] = nil  // from versions with a switch for it
         dict["menuBar"] = menuBar
         dict["closeAfter"] = closeAfter
@@ -103,6 +106,20 @@ struct SettingsView: View {
                     HowRow(title: "Point at a word, then press the key twice",
                            text: "Rest the mouse pointer on a word, without selecting it; works on pictures and videos too. Needs the Screen Recording permission: Lookup Word takes a picture of a small area around the pointer, only when you press the keys.",
                            allowed: CGPreflightScreenCaptureAccess(), pane: "Privacy_ScreenCapture")
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Or type a word, with a shortcut")
+                            Text("Press it in any app: a box opens; type the word and press Return. Needs no permission.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            if typeShortcutTaken && model.typeKey == typeShortcut.id {
+                                Text("\(typeShortcut.symbol) is taken by another app: choose another.").font(.caption).foregroundStyle(.orange)
+                            }
+                        }
+                        Spacer()
+                        Picker("", selection: $model.typeKey) {
+                            ForEach(typeShortcuts, id: \.id) { Text($0.id == "none" ? "Off" : $0.symbol).tag($0.id) }
+                        }.labelsHidden().frame(width: 110)
+                    }
                     Toggle("Show the menu bar icon", isOn: $model.menuBar)
                     HStack {
                         Text("Close the card after")

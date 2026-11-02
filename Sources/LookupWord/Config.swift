@@ -18,8 +18,18 @@ struct StoreConfig: Codable {
 }
 
 struct Config: Codable {
-    var languages = ["en", "nl", "el"]  // pack codes; English is the pivot and is always added
+    // a new user's languages: English, plus each of the Mac's preferred languages (System Settings → General →
+    // Language & Region) that has a pack, in that order
+    static var defaultLanguages: [String] {
+        let have = Set(((try? FileManager.default.contentsOfDirectory(atPath: Paths.packs.path)) ?? []))
+        let mine = Locale.preferredLanguages.compactMap { Locale(identifier: $0).language.languageCode?.identifier }
+        var seen: Set = ["en"]
+        return ["en"] + mine.filter { have.contains($0) && seen.insert($0).inserted }
+    }
+
+    var languages = Config.defaultLanguages  // pack codes; English is the pivot and is always added
     var hotkey = "option"  // the modifier to double-tap: option | control | command | shift
+    var typeShortcut = "control-command-l"  // the type-a-word box's shortcut: one of typeShortcuts' keys
     var menuBar = true  // a menu bar icon with the vocabulary, the settings and Quit
     var closeAfter = 30.0  // seconds before the card closes by itself; 0 keeps it open until a click or key
     var debug = false  // save each screen reading as capture.png in the support folder, and log its coordinates
@@ -31,6 +41,7 @@ struct Config: Codable {
         let c = try d.container(keyedBy: CodingKeys.self)
         languages = c.lenient([String].self, .languages)?.map { $0.lowercased() } ?? languages
         hotkey = c.lenient(String.self, .hotkey)?.lowercased() ?? hotkey
+        typeShortcut = c.lenient(String.self, .typeShortcut)?.lowercased() ?? typeShortcut
         menuBar = c.lenient(Bool.self, .menuBar) ?? menuBar
         closeAfter = c.lenient(Double.self, .closeAfter) ?? closeAfter
         debug = c.lenient(Bool.self, .debug) ?? debug

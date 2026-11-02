@@ -54,7 +54,8 @@ func replacing(_ s: String, _ pattern: String, _ with: String) -> String {
 // its other language's do not. Oxford's French, German and Spanish ones mark the English pronunciation (| BrE haʊs,
 // AmE haʊs |), and French and German give their own headwords one too (maison | mɛzɔ̃ |): in a dictionary whose
 // "house" carries the mark, only the mark tells an English headword.
-let marksBrE: [String: Bool] = dictionaries.keys.reduce(into: [:]) { out, name in
+// Only the packs' X - English dictionaries are asked (never every installed one: Wikipedia's may go online).
+let marksBrE: [String: Bool] = packs.compactMap(\.bilingual).filter { dictionaries[$0] != nil }.reduce(into: [:]) { out, name in
     out[name] = define("house", in: name, follow: false).map { matches($0, #"^[^|\n]{1,60}\| [^|]*\b(BrE|AmE)\b"#) } ?? false
 }
 func englishSide(_ t: String?, in dictionary: String?) -> Bool {
@@ -64,20 +65,53 @@ func englishSide(_ t: String?, in dictionary: String?) -> Bool {
 
 var wanted: String?  // the word being looked up, for gloss's derivatives
 
+// whether an entry's text, past its headword and pronunciation, opens with a noun label (znw, n, An, noun, masculine…)
+func opensAsNoun(_ text: String) -> Bool {
+    var t = text
+    if let pron = t.range(of: #"\|[^|]*\|"#, options: .regularExpression), t.distance(from: t.startIndex, to: pron.lowerBound) < 60 {
+        t = String(t[pron.upperBound...])
+    } else { t = String(t.drop { !$0.isWhitespace }) }  // no pronunciation (Dutch headwords): past the headword
+    let first = t.split(separator: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) }
+        .first { !$0.isEmpty && !($0.count == 1 && "ABCD".contains($0)) } ?? ""
+    return nounLabels.contains(first) || nounLabels.contains(replacing(first, #"^[A-D](?=nn?$)"#, ""))
+}
+// whether an entry opens as an adjective or adverb (bn, bw, adj, adv, adjective, adverb)
+func opensAsDescribing(_ text: String) -> Bool {
+    var t = text
+    if let pron = t.range(of: #"\|[^|]*\|"#, options: .regularExpression), t.distance(from: t.startIndex, to: pron.lowerBound) < 60 {
+        t = String(t[pron.upperBound...])
+    } else { t = String(t.drop { !$0.isWhitespace }) }  // no pronunciation (Dutch headwords): past the headword
+    let first = t.split(separator: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) }
+        .first { !$0.isEmpty && !($0.count == 1 && "ABCD".contains($0)) } ?? ""
+    return ["bn", "bw", "adj", "adv", "adjective", "adverb"].contains(replacing(first, #"^[A-D](?=adj$|adv$)"#, ""))
+}
+// whether a stretch of an entry holds a word that is not a label or a section letter: a translation
+func hasTranslation(_ text: String, _ rules: GlossRuleSet) -> Bool {
+    text.split(separator: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) }.contains { w in
+        w.contains(where: \.isLetter) && !rules.labels.contains(w) && !nounLabels.contains(w) && !(w.count <= 2 && w.first?.isUppercase == true)
+    }
+}
+// the labels a bilingual entry's noun part opens with: on the English side Dutch znw, Greek n or An, the Oxford ones'
+// "noun"; on the other side a gender (Dutch "boek o", "m", "v"; Greek το, η, ο; the Oxford ones' masculine, feminine)
+let nounLabels: Set = ["znw", "n", "nn", "noun", "masculine", "feminine", "neuter", "nm", "nf", "C", "U",
+                       "o", "m", "v", "m/v", "το", "η", "ο", "ο/η"]
 // The first sense of an entry as a short phrase: past the headword and pronunciation, before the first example (▸),
 // sub-sense (•), sense 2 or section, without labels in <>, () or [], or grammar (the packs' labels). A list (a
 // translation) keeps three items and stops at the first full stop; a meaning keeps the sense and stops at its colon.
 // `target` is the language the phrase is in, when it is a translation into a language with its own script: words
 // before its first word in that script go.
-func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil) -> String {
+// `from` is the pack whose dictionary the entry comes from (nil: English's own), for its rules. `noun`: the word is a
+// noun, so an entry that opens with its noun part keeps that part rather than jump to a later numbered one.
+func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil, from: Pack? = nil, noun: Bool = false) -> String {
     guard var s = entry else { return "" }
+    let rules = glossRules(from ?? target)
     // an entry for another headword ("alignment" finds align): the word's own line under DERIVATIVES, when it has one
     if let word = wanted, !s.lowercased().hasPrefix(word.lowercased()),
        let r = s.range(of: #"(?<=\s)"# + NSRegularExpression.escapedPattern(for: word) + #"\s+(n|nn|adj|adv|v|vt|vi|znw|bn|bw|ww)\b"#,
                        options: [.regularExpression, .caseInsensitive]) {
         s = String(s[r.lowerBound...])
     }
-    for (pattern, with) in glossVariants { s = replacing(s, pattern, with) }  // "αδελφός, καίαδερφός Anm …": the variant goes
+    for (pattern, with) in rules.variants { s = replacing(s, pattern, with) }  // "αδελφός, καίαδερφός Anm …": the variant goes
     // past the pronunciations: the last one near the top, since an irregular word lists its forms first, each with its
     // own (say | seɪ | … says | sez | … said | sed | λέγω) — a chain: from the first, on to the next only while it
     // follows within 40 characters (not a derivative's, further on)
@@ -86,11 +120,18 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil) -> String {
         for r in prons.dropFirst() where s.distance(from: last.upperBound, to: r.lowerBound) <= 40 { last = r }
         s = String(s[last.upperBound...])
     } else { s = String(s.drop { !$0.isWhitespace }) }
-    // grammar notes before sense 1 (μεταφέρ[ν]ω vt μετέφερα αόρ., … 1carry): the meaning starts at the 1
-    if let r = s.range(of: #"(?<=[\s.])1(?=\s?[\p{L}\[(<])"#, options: .regularExpression), s.distance(from: s.startIndex, to: r.lowerBound) < 200 {
+    // grammar notes before sense 1 (μεταφέρ[ν]ω vt μετέφερα αόρ., … 1carry): the meaning starts at the 1; but not for a
+    // noun whose entry opens with its noun part, unnumbered, as then the 1 opens a later part of speech (tree: "znw
+    // boom ▸ … overg 1 in een boom jagen", book: "An C βιβλίο ▸ … Bvt 1εγγράφω")
+    // (only when that noun part holds a translation before its first example: "small | A noun ▸ the small of the back"
+    // holds none, so its adjective's 1 is the translation)
+    let opensWithNoun = noun && opensAsNoun(s) && hasTranslation(String(s.prefix { $0 != "▸" }), rules)
+    // (a 1 right after "~" counts too: Greek - English run2 "pp ~1τρέχω")
+    if let r = s.range(of: #"(?<=[\s.~])1(?=\s?[\p{L}\[(<])"#, options: .regularExpression), s.distance(from: s.startIndex, to: r.lowerBound) < 200,
+       !(opensWithNoun && s[..<r.lowerBound].contains("▸")) {
         s = String(s[r.upperBound...])
-    } else if !glossNotes.isEmpty,
-              let r = s.prefix(240).range(of: #"(?s).*\b("# + glossNotes.joined(separator: "|") + #")\."#, options: .regularExpression) {
+    } else if !rules.notes.isEmpty,
+              let r = s.prefix(240).range(of: #"(?s).*\b("# + rules.notes.joined(separator: "|") + #")\."#, options: .regularExpression) {
         s = String(s[r.upperBound...])  // no sense numbers: the meaning starts after the last grammar note (πήγα αόρ., … μτχ. παρακ.)
     }
     // a suffix variant in brackets (gelijk(-heid)), a ~ grammar note (γάλα "~ τος gen"), then a bracketed label
@@ -101,7 +142,7 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil) -> String {
     s = replacing(s, #"\(\s*[-~][^)]*\)"#, "")
     s = replacing(s, #"~\s?\S*(\s+gen\b)?"#, " ")
     s = replacing(s, #"\([^)]*\)"#, list ? ", " : " ")
-    for cut in glossCuts + (list ? [] : [":"]) {
+    for cut in rules.cuts + (list ? [] : [":"]) {
         if let r = s.range(of: cut) { s = String(s[..<r.lowerBound]) }
     }
     // the next sense, wherever its number stands ("calculating machine 2", "hangen 2, helling 3")
@@ -110,12 +151,12 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil) -> String {
     if list, let r = s.range(of: ". ") { s = String(s[..<r.lowerBound]) }
     var words = s.split(separator: " ").map(String.init)
     // a label, also with its section letter glued on (A + nm = "Anm", A + vt = "Avt")
-    let label = { (w: String) in let x = w.trimmingCharacters(in: .punctuationCharacters); return glossLabels.contains(x) || (x.count > 1 && "ABCD".contains(x.first!) && glossLabels.contains(String(x.dropFirst()))) }
+    let label = { (w: String) in let x = w.trimmingCharacters(in: .punctuationCharacters); return rules.labels.contains(x) || (x.count > 1 && "ABCD".contains(x.first!) && rules.labels.contains(String(x.dropFirst()))) }
     while let f = words.first, label(f) || f.allSatisfy(\.isNumber) {
         words.removeFirst()
     }
     // labels inside a list too ("IRS znw belastingdienst", "ook:", "aux verb be")
-    words = words.filter { !glossInner.contains($0.trimmingCharacters(in: .punctuationCharacters)) }
+    words = words.filter { !rules.inner.contains($0.trimmingCharacters(in: .punctuationCharacters)) }
     if let script = target?.script {
         let own = #"\p{"# + script + "}"
         if let i = words.firstIndex(where: { matches($0, own) }) { words.removeFirst(i) }  // "U έλλειψη", "A ) vi …"
@@ -123,7 +164,9 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil) -> String {
     }
     s = replacing(replacing(words.joined(separator: " "), #"\s*&\s*(?=,|$)"#, ""), #"^\d+"#, "").trimmingCharacters(in: .whitespaces.union(.init(charactersIn: ".,;:")))
     guard list else { return s }
-    return s.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0.contains(where: \.isLetter) }.prefix(3)
+    var seen = Set<String>()  // an item once ("lopen, lopen, rennen" from two senses)
+    return s.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { $0.contains(where: \.isLetter) && seen.insert($0.lowercased()).inserted }.prefix(3)
         .joined(separator: ", ")
 }
 
@@ -149,11 +192,33 @@ func withoutHints(_ text: String, _ p: Pack) -> String {
 // A verb's part of an English entry in an X - English dictionary (θέλω → like gave Dutch "zoals", μπορώ → can gave
 // "blik", a tin): from X's verb label (overg, onoverg, hulpww in Dutch - English; v, vt, vi in Greek - English; not a
 // "v." usage note) on, after the headword and pronunciation; the whole entry when it has none.
-func verbPart(_ t: String, _ p: Pack) -> String {
-    guard let labels = p.verbLabels, !labels.isEmpty, let pron = t.range(of: #"\|[^|]*\|"#, options: .regularExpression),
-          let v = t[pron.upperBound...].range(of: #"\s("# + labels.joined(separator: "|") + #")(?=\s|\d|\[)"#, options: .regularExpression)
-    else { return t }
+// `intransitive`: the verb's first sense takes no object (Oxford's "[no object]"), so the pack's intransitive part
+// comes first where it has one (run: Dutch "onoverg … rennen, lopen", not "overg … laten lopen").
+func verbPart(_ t: String, _ p: Pack, intransitive: Bool = false) -> String {
+    guard let labels = p.verbLabels, !labels.isEmpty, let pron = t.range(of: #"\|[^|]*\|"#, options: .regularExpression) else { return t }
+    let rest = t[pron.upperBound...]
+    // (a section letter may lead the label: "Bvt 1εγγράφω")
+    let find = { (ls: [String]) in rest.range(of: #"\s[A-D]?("# + ls.joined(separator: "|") + #")(?=\s|\d|\[)"#, options: .regularExpression) }
+    var preferred: Range<Substring.Index>?
+    if intransitive, let own = p.intransitiveLabels, !own.isEmpty { preferred = find(own) }
+    guard let v = preferred ?? find(labels) else { return t }
     return String(t[..<pron.upperBound]) + String(t[v.lowerBound...])
+}
+
+// A verb's entry for an English word in an X - English dictionary. Greek - English keeps the noun and the verb of
+// "run" as two entries (run1 n…, run2 vti…), and a lookup returns only the first: so the word's entry that opens with
+// a verb label first, else the verb part of the first entry.
+func verbEntry(_ t: String, _ word: String, _ p: Pack, intransitive: Bool = false) -> String {
+    let labels = p.verbLabels ?? []
+    func opensAsVerb(_ r: String) -> Bool {
+        guard let pron = r.range(of: #"\|[^|]*\|"#, options: .regularExpression) else { return false }
+        let first = r[pron.upperBound...].split(separator: " ").first.map(String.init) ?? ""
+        return labels.contains(replacing(first.trimmingCharacters(in: .punctuationCharacters), #"^[A-D](?=\p{Ll})"#, ""))
+    }
+    if !opensAsVerb(t), let r = records(word, in: p.bilingual).first(where: {
+        $0 != t && englishSide($0, in: p.bilingual) && $0.lowercased().hasPrefix(word.lowercased()) && opensAsVerb($0)
+    }) { return verbPart(r, p, intransitive: intransitive) }
+    return verbPart(t, p, intransitive: intransitive)
 }
 
 // Whether a word is a verb: by its pack's endings, or by its entry's label.
@@ -166,11 +231,20 @@ func isVerb(_ word: String, _ p: Pack, _ entry: String?) -> Bool {
 
 // The word's translation through its English meaning: the first of its English words ("to run" → run) that the
 // target's X - English dictionary has as an English headword of its own (it answers "companionable" with companion's).
-func via(_ english: String, in p: Pack, verb: Bool = false) -> String {
+// `describing`: the source word is an adjective or adverb, so an English item whose entry opens as a noun is tried last
+// (gentil: "kind, nice"; kind's German entry opens with the noun Art, nice's gives nett).
+func via(_ english: String, in p: Pack, verb: Bool = false, noun: Bool = false, describing: Bool = false) -> String {
+    var later: [(String, String)] = []
     for item in english.split(separator: ",").prefix(3) {
         let w = replacing(String(item), #"^\s*(to|a|an|the)\s+"#, "").trimmingCharacters(in: .whitespaces)
         guard let t = define(w, in: p.bilingual), englishSide(t, in: p.bilingual), t.lowercased().hasPrefix(w.lowercased()) else { continue }
-        let g = gloss(verb ? verbPart(t, p) : t, target: p)
+        // (only an entry with no adjective part at all: "mild | A noun … B adjective 1 léger" has one)
+        if describing, !verb, opensAsNoun(t), !matches(t, #"\s[A-D]?(adjective|adj|bn|adverb|adv|bw)\b"#) { later.append((w, t)); continue }
+        let g = gloss(verb ? verbEntry(t, w, p) : t, target: p, from: p, noun: noun)
+        if !g.isEmpty { return g }
+    }
+    for (_, t) in later {
+        let g = gloss(t, target: p, from: p, noun: noun)
         if !g.isEmpty { return g }
     }
     return ""

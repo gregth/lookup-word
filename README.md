@@ -100,8 +100,8 @@ To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh
 
 ## Use
 
-There are two ways to look up a word. Both end the same way: press the **⌥ Option** key twice, quickly, and the card
-appears. To close it, click anywhere else or press any key; it also closes by itself after 30 seconds.
+There are three ways to look up a word. The first two end the same way: press the **⌥ Option** key twice, quickly,
+and the card appears; the third is a box to type into. To close it, click anywhere else or press any key; it also closes by itself after 30 seconds.
 
 ### 1. Select the word
 
@@ -124,6 +124,13 @@ appears. To close it, click anywhere else or press any key; it also closes by it
 - This one is optional. The welcome window offers it; if you skip it, pointing at a word later shows a card that
   explains it again, with a button to allow it. Selecting words keeps working without it.
 
+### 3. Or type it
+
+- Press **⌃⌘L** (Control, Command and L together; you can choose another in Settings) in any app, or choose **Look Up a Word…** in the menu bar menu.
+  A box opens near the top of the screen: type the word, in any of your languages, and press Return. Its card
+  shows below the box. Escape closes it.
+- This needs no permission at all, so it works even before you allow the other two.
+
 ### On the card
 
 - **Click the speaker** next to a word to hear it, in its own language's voice.
@@ -141,8 +148,9 @@ the menu. Every key is optional.
 
 | Key | Default | What it does |
 |---|---|---|
-| `languages` | `["en", "nl", "el"]` | The language packs to use, from [packs/](packs/). English is the pivot and is always on. |
+| `languages` | English, plus your Mac's preferred languages that have a pack | The language packs to use, from [packs/](packs/). English is the pivot and is always on. |
 | `hotkey` | `"option"` | The key to press twice: `option`, `control`, `command` or `shift`. |
+| `typeShortcut` | `"control-command-l"` | The shortcut for the box to type a word: `control-command-l` (⌃⌘L), `option-command-l`, `control-option-command-l`, `control-option-l`, or `none`. |
 | `menuBar` | `true` | Show the menu bar icon. **Hide Menu Bar Icon** in its menu sets this to `false`. With the icon hidden, open Lookup Word again from Applications for its settings. |
 | `closeAfter` | `30` | Seconds before the card closes by itself; `0` keeps it open until a click or a key. |
 | `debug` | `false` | Save each screen reading as `capture.png` in the support folder and log its coordinates. |
@@ -160,8 +168,11 @@ Saving is optional: in **Settings… → Save words to**, choose a Markdown file
   ![A vocabulary file with English, Dutch and Greek tables: each word with its meaning or English, and its translations](docs/vocabulary.png)
 
 - **JSON:** a list of `{word, language, meaning, translations}`, for your own scripts.
-- **Also save the date and time** (off by default): an **Added** column in new tables, or an `added` field in JSON.
-  To add it to an existing table, add an `Added` column to its header: rows follow the table's own columns.
+- **Also save the date and time** (off by default): an **Added** column, or an `added` field in JSON.
+
+A language you add in Settings, or Added once you turn it on, gets its own column at the end of an existing table on
+the next save, with an empty cell in the rows already there. Columns you reorder or rename to a language's name keep
+working: rows follow the table's own header.
 
 A save never writes over a file another app (a sync client, an editor) is in the middle of saving. It skips a read
 that comes back empty, unreadable or much shorter than after the last save, writes only if the file still holds what

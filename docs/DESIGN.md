@@ -109,6 +109,13 @@ flowchart LR
   starts with the English word.
 - For an English word, `entry()` skips the first hop: each language's translation is the gloss of its X - English entry
   for that word (`verbPart()` when `isVerb()` says it is a verb).
+- Which part of an entry is the translation: a verb takes its entry's verb part (`verbEntry()`: the word's own verb
+  entry when the dictionary splits noun and verb, as Greek - English does for *run*; the intransitive part first for a
+  verb whose first sense takes no object). A noun keeps its entry's opening noun part when that part has a translation
+  before its first example (*tree* → *boom*, not the verb's "in een boom jagen"). An adjective's English items whose
+  entries are only nouns are tried last (*gentil* → *kind, nice* → German *nett*, not *Art*).
+- Each dictionary's entries are rewritten with English's and their own pack's `cuts`, `grammarNotes` and `variants`
+  (`glossRules()`), never another pack's; label lists are shared.
 - Data in `pack.json` covers most of a language: dictionary names, `script`, `recognizer`, `ocr`, `spellChecker`,
   verb rules, `stripHints`, `lemmas` and gloss labels. Code in `LanguageHooks` covers what data cannot: Greek maps
   Cyrillic/Latin look-alike readings back to Greek letters and lists the dictionary forms a regular ending points to,

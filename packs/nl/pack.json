@@ -11,6 +11,7 @@
   "spellChecker": "nl",
   "verb": { "entryPattern": "\\s(ww|overg|onoverg)\\b", "prefix": 60 },
   "verbLabels": ["ww", "hulpww", "overg", "onoverg", "wederk"],
+  "intransitiveLabels": ["onoverg"],
   "stripHints": true,
   "gloss": {
     "labels": ["bn", "bw", "znw", "ww", "vz", "vnw", "tw", "het", "de", "zelfstandig", "naamwoord", "bijvoeglijk",

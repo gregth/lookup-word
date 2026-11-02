@@ -227,17 +227,32 @@ struct MarkdownStore: VocabularyStore {
         let span = section(lines, e.lang)!
         guard let t = table(lines, span) else { return .status("Not saved: the \(heading(e.lang)) section of \(name) has no table.") }
         if known(lines, t).contains(e.word.lowercased()) { return .status("Already in \(heading(e.lang)).") }
+        // a language added in Settings since the table was made (or Added, once turned on): its column at the table's
+        // end, each existing row given an empty cell, so nothing asks the user to edit the header. Meaning is not put
+        // back: a table without it was made that way on purpose.
+        var cols = cells(lines[t.header]).dropFirst().map { column($0) }
+        let wanted = columns(e.lang).filter { $0 != "meaning" && !cols.contains($0) }
+        if !wanted.isEmpty {
+            let width = cells(lines[t.header]).count
+            for i in t.header...t.end {
+                var line = lines[i]
+                while line.last?.isWhitespace == true { line.removeLast() }
+                if !line.hasSuffix("|") || line.hasSuffix("\\|") { line += " |" }
+                let isRule = i == t.header + 1 && cells(line).allSatisfy { $0.trimmingCharacters(in: .whitespaces).allSatisfy { "-: ".contains($0) } }
+                let filler = isRule ? " --- |" : " |"
+                line += String(repeating: filler, count: max(0, width - cells(line).count))  // a short row, first lined up
+                lines[i] = line + (i == t.header ? wanted.map { " \(columnName($0)) |" }.joined() : String(repeating: filler, count: wanted.count))
+            }
+            cols += wanted
+        }
+        let added = wanted.isEmpty ? "" : wanted.count == 1 ? " Added a \(columnName(wanted[0])) column to its table."
+            : " Added \(wanted.map(columnName).joined(separator: " and ")) columns to its table."
         // the row follows the table's own header, so a table made before a language was added still lines up
-        let cols = cells(lines[t.header]).dropFirst().map { column($0) }
         let cell = { (s: String) in replacing(s, #"\s+"#, " ").replacingOccurrences(of: "|", with: "/").trimmingCharacters(in: .whitespaces) }
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm"
         let value = { (col: String) in col.isEmpty ? "" : col == "added" ? f.string(from: Date()) : cell(e.value(col)) }
         lines.insert("| **\(cell(e.word))** | " + cols.map(value).joined(separator: " | ") + " |", at: t.end + 1)
-        // a value the table has no column for: say so, rather than drop it silently
-        let missing = e.tr.filter { !$0.1.isEmpty && !cols.contains($0.0) }.compactMap { pack($0.0)?.name }
-            + (saveDate && !cols.contains("added") ? ["Added"] : [])
-        let note = missing.isEmpty ? "" : " Its table has no \(missing.joined(separator: " or ")) column: add one to the header to keep those."
-        return .text(lines.joined(separator: eol), note)
+        return .text(lines.joined(separator: eol), added)
     }
 }
 

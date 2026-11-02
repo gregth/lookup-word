@@ -53,7 +53,7 @@ struct WelcomeView: View {
                     Text("Look up any word on your Mac, in all your languages.").foregroundStyle(.secondary)
                 }
             }
-            Text("There are two ways to look up a word. Each needs a permission from you, which macOS asks for in System Settings.")
+            Text("There are two ways to look up a word you see on screen. Each needs a permission from you, which macOS asks for in System Settings.")
                 .fixedSize(horizontal: false, vertical: true)
             PermissionRow(title: "Select a word", badge: "Needed",
                           text: "\(howSelect) For this, Lookup Word needs the permission macOS calls Accessibility, to notice the keys and read the word you selected.",
@@ -61,6 +61,8 @@ struct WelcomeView: View {
             PermissionRow(title: "Point at a word", badge: "Optional",
                           text: "\(howPoint) \(whyScreen) You can allow it later: pointing at a word will ask again.",
                           granted: model.screen, pane: "Privacy_ScreenCapture")
+            Text("You can also press \(typeShortcut.symbol) anywhere to type a word into a box: that needs no permission.")
+                .font(.callout).fixedSize(horizontal: false, vertical: true)
             Text("When you click Allow, macOS asks you; choose Open System Settings there, turn on the switch next to Lookup Word, then come back here. This window updates by itself. For pointing, macOS may ask to quit and reopen Lookup Word.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {

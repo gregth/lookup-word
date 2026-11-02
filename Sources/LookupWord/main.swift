@@ -33,15 +33,15 @@ func status(_ s: String) -> String {
 }
 
 // A word found: its entry from the dictionaries at once, then the store's answer in the status line.
-func show(_ raw: String, _ rect: NSRect?, _ around: String, _ mine: Int) {
+func show(_ raw: String, _ rect: NSRect?, _ around: String, _ mine: Int, highlight: Bool = true) {
     let hint = language(around)
     guard let e = lookUpEntry(raw, hint: hint) ?? (raw.contains(" ") ? nil : corrected(raw.trimmingCharacters(in: .punctuationCharacters), hint: hint)) else {
         log("no entry for \(raw)")
         let w = raw.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
-        return present(message("“\(w)” is in none of your dictionaries" + (w.first?.isUppercase == true ? ": a name, perhaps. Dictionaries leave names out." : ".")), at: rect)
+        return present(message("“\(w)” is in none of your dictionaries" + (w.first?.isUppercase == true ? ": a name, perhaps. Dictionaries leave names out." : ".")), at: rect, highlight: highlight)
     }
     log("\(e.lang) \(e.word)")
-    present(card(e, status: status(store is NoStore ? "" : "Saving…")), at: rect)
+    present(card(e, status: status(store is NoStore ? "" : "Saving…")), at: rect, highlight: highlight)
     saves.async {
         let answer = store.save(e)
         DispatchQueue.main.async { if shown == mine { update(card(e, status: status(answer))) } }
@@ -132,6 +132,16 @@ final class Menu: NSObject {
         how.image = NSImage(systemSymbolName: "text.magnifyingglass", accessibilityDescription: nil)
         m.addItem(how)
         m.addItem(.separator())
+        let typed = NSMenuItem(title: "Look Up a Word…", action: #selector(typeWord), keyEquivalent: typeShortcut.id == "none" ? "" : "l")
+        // shown only: the hot key works from any app
+        var mask: NSEvent.ModifierFlags = []
+        if typeShortcut.symbol.contains("⌃") { mask.insert(.control) }
+        if typeShortcut.symbol.contains("⌥") { mask.insert(.option) }
+        if typeShortcut.symbol.contains("⌘") { mask.insert(.command) }
+        typed.keyEquivalentModifierMask = mask
+        typed.target = self
+        typed.image = NSImage(systemSymbolName: "character.cursor.ibeam", accessibilityDescription: nil)
+        m.addItem(typed)
         if store.url != nil { add(m, "Open Vocabulary", #selector(vocabulary), key: "o", symbol: "book") }
         add(m, "Settings…", #selector(settings), key: ",", symbol: "gearshape")
         m.addItem(.separator())
@@ -170,6 +180,7 @@ final class Menu: NSObject {
         pointing.isHidden = !ok || CGPreflightScreenCaptureAccess()  // the optional one, once the required one is there
     }
     @objc func welcome() { showWelcome() }
+    @objc func typeWord() { showTypeBox() }
     // the standard About panel: the icon, name and version from the app's bundle, and these credits
     @objc func about() {
         NSApp.activate(ignoringOtherApps: true)
@@ -235,9 +246,12 @@ final class Menu: NSObject {
 // elsewhere (a note in a vault) never. The permissions are reset here, while this process lives: launchd ends every
 // process of the job when it exits, so a helper left to do it afterwards is killed first.
 struct Uninstalled { var removed: [String], failed: [String], kept: [String]
-    var report: String {
-        (["Removed: " + removed.joined(separator: ", ") + "."] + (failed.isEmpty ? [] : ["Could not remove: " + failed.joined(separator: "; ")])
-            + kept + ["To install it again, run install.sh from its folder."]).joined(separator: "\n\n")
+    var report: String {  // in steps: as one expression, older Swift (macos-14 CI) gives up type-checking it
+        var parts: [String] = ["Removed: " + removed.joined(separator: ", ") + "."]
+        if !failed.isEmpty { parts.append("Could not remove: " + failed.joined(separator: "; ")) }
+        parts += kept
+        parts.append("To install it again, run install.sh from its folder.")
+        return parts.joined(separator: "\n\n")
     }
 }
 // An installed app knows its own identifier; a copy run from the build folder has none, and must never guess one (it
@@ -448,6 +462,7 @@ let app = NSApplication.shared
 DispatchQueue.main.async { for p in packs where p.lemmas != nil { _ = lemma("", p) } }  // read lemma lists at start, not on first use
 app.setActivationPolicy(.accessory)
 watchKeys()
+registerTypeShortcut()
 var menu = !quiet && (config.menuBar || !AXIsProcessTrusted()) ? Menu() : nil  // shown while it cannot work, even when hidden
 // the icon kept up to date with the permission: back to the book once it is given (and gone again if the settings
 // hide it), a warning again if it is taken away

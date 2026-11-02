@@ -39,11 +39,28 @@ func indent(_ first: CGFloat, _ rest: CGFloat, tab: CGFloat? = nil) -> NSParagra
     return p
 }
 
+// Each sense number on a line of its own: a number in the place of one ("1 move", "2run", not "18th") counts only as
+// the next in sequence, so a number in an example ("Dave has run 42 marathons") stays in its sentence.
+func senseBreaks(_ text: String) -> String {
+    guard let re = try? NSRegularExpression(pattern: #"\s(\d{1,2})\.?(?:\s(?=[\p{L}\[(<])|(?![a-z]{2}\b)(?=\p{L}))"#) else { return text }
+    let ns = text as NSString
+    var out = "", at = 0, next = 1
+    for m in re.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+        // the next number, or one a little further (a sense the pattern missed, as Greek "4(στη φρ.)", must not stop
+        // every break after it), or a new 1
+        guard let n = Int(ns.substring(with: m.range(at: 1))), n == 1 || (next...next + 3).contains(n) else { continue }
+        out += ns.substring(with: NSRange(location: at, length: m.range.location - at)) + "\n\(n)\t"
+        at = m.range.location + m.range.length
+        next = n + 1
+    }
+    return out + ns.substring(from: at)
+}
+
 func formatted(_ text: String) -> NSAttributedString {
     var t = replacing(text, #"\s*\b(DERIVATIVES|PHRASES|PHRASAL VERBS|IDIOMS|ORIGIN|ANTONYMS|USAGE|SYNONYMS)\b\s*"#, "\n\n$1\n")
     t = replacing(t, #"\s*▸\s*"#, "\n▸ ")
     t = replacing(t, #"\s*•\s*"#, "\n• ")
-    t = replacing(t, #"\s(\d{1,2})\.?(?:\s(?=[\p{L}\[(<])|(?![a-z]{2}\b)(?=\p{L}))"#, "\n$1\t")  // senses, not "18th"
+    t = senseBreaks(t)
     let body = serif(15, .regular), out = NSMutableAttributedString()
     for (i, line) in t.split(separator: "\n", omittingEmptySubsequences: false).map(String.init).enumerated() {
         if i > 0 { out.append(run("\n", body)) }
@@ -193,8 +210,9 @@ func close() {
     timer?.invalidate(); timer = nil
 }
 
-// The anchor the popover points at: the word's yellow highlight, as Look Up's, or an invisible spot at the pointer.
-func anchor(_ r: NSRect?) -> NSView {
+// The anchor the popover points at: the word's yellow highlight, as Look Up's, or an invisible spot at the pointer
+// (or at r, for a word typed into the box, which has no word on screen to highlight).
+func anchor(_ r: NSRect?, highlight: Bool = true) -> NSView {
     mark?.orderOut(nil)
     let frame = r?.insetBy(dx: -1, dy: -1) ?? NSRect(origin: NSEvent.mouseLocation, size: NSSize(width: 2, height: 2))
     let w = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -202,7 +220,7 @@ func anchor(_ r: NSRect?) -> NSView {
     w.level = .popUpMenu; w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     let v = NSView(frame: NSRect(origin: .zero, size: frame.size))
     v.wantsLayer = true
-    if r != nil {
+    if r != nil, highlight {
         v.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.45).cgColor
         v.layer?.cornerRadius = 3
     }
@@ -213,16 +231,16 @@ func anchor(_ r: NSRect?) -> NSView {
 }
 
 // Show text in the popover pointing at the word (or the pointer): above it, as Look Up, below when there is no room.
-func present(_ s: NSAttributedString, at r: NSRect?) {
+func present(_ s: NSAttributedString, at r: NSRect?, highlight: Bool = true) {
     pop?.close()
-    let v = anchor(r)
+    let v = anchor(r, highlight: highlight)
     content.set(s)
     let p = NSPopover()
     p.contentViewController = content
     p.behavior = .applicationDefined
     p.animates = false
     p.contentSize = content.preferredContentSize
-    p.show(relativeTo: v.bounds, of: v, preferredEdge: .maxY)
+    p.show(relativeTo: v.bounds, of: v, preferredEdge: highlight ? .maxY : .minY)  // a typed word's card hangs below the box
     pop = p
     DispatchQueue.main.async { content.top() }  // again once the popover has laid it out
 }
