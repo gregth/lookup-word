@@ -453,6 +453,31 @@ if let id = Bundle.main.bundleIdentifier {
         exit(0)
     }
 }
+// A copy opened outside the launch agent (macOS's Quit & Reopen after a permission is granted, Finder, Spotlight)
+// while the agent's job is loaded but stopped: launchd starts the job instead, and this copy quits. Left running, it
+// stays outside launchd, which neither restarts it nor lets the next install stop it (his launchctl list, 2026-11-02
+// 16:36: the job stopped, an "application." copy running). The job starts once this copy is gone, which a second's
+// wait covers, so its copy is not the one turned away above.
+if isInstalledApp, ProcessInfo.processInfo.environment["LOOKUP_AGENT"] == nil,
+   FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Library/LaunchAgents/\(agentLabel).plist") {
+    let job = "gui/\(getuid())/\(agentLabel)"
+    let query = Process(), out = Pipe()
+    query.executableURL = URL(fileURLWithPath: "/bin/launchctl"); query.arguments = ["print", job]
+    query.standardOutput = out; query.standardError = FileHandle.nullDevice
+    if (try? query.run()) != nil {
+        let text = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        query.waitUntilExit()
+        if query.terminationStatus == 0, !text.contains("state = running") {
+            let start = Process()
+            start.executableURL = URL(fileURLWithPath: "/bin/sh")
+            start.arguments = ["-c", "sleep 1; /bin/launchctl kickstart \(job)"]
+            if (try? start.run()) != nil {
+                log("opened outside the launch agent, whose job is stopped: it starts the job instead")
+                exit(0)
+            }
+        }
+    }
+}
 // a test copy (scripts/test-install.sh) runs without a menu bar icon or welcome window
 let quiet = ProcessInfo.processInfo.environment["LOOKUP_QUIET"] != nil
 
