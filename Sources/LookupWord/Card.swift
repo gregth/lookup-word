@@ -13,6 +13,28 @@ func run(_ s: String, _ font: NSFont, _ color: NSColor = .labelColor) -> NSAttri
     NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
 }
 
+// a language's code in a small rounded badge (NL, EL), one width for all so the rows line up: a code, not a flag, as
+// a flag names a country, not a language (Spanish is Mexico's too), and some languages have none (his call, 2026-11-02)
+func badge(_ code: String) -> NSAttributedString {
+    let label = code.uppercased() as NSString
+    let font = NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
+    let size = NSSize(width: 24, height: 15)
+    // (drawn when shown, so its colours follow light and dark mode)
+    let image = NSImage(size: size, flipped: false) { r in
+        NSColor.quaternaryLabelColor.setFill()
+        NSBezierPath(roundedRect: r, xRadius: 4, yRadius: 4).fill()
+        let a: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.secondaryLabelColor]
+        let s = label.size(withAttributes: a)
+        label.draw(at: NSPoint(x: (r.width - s.width) / 2, y: (r.height - s.height) / 2), withAttributes: a)
+        return true
+    }
+    image.accessibilityDescription = pack(code)?.name ?? code
+    let a = NSTextAttachment()
+    a.image = image
+    a.bounds = NSRect(x: 0, y: -2, width: size.width, height: size.height)
+    return NSAttributedString(attachment: a)
+}
+
 // a speaker button that says the text in that language: the system's speaker symbol, in the accent colour
 func speaker(_ text: String, _ lang: String, size: CGFloat = 14) -> NSAttributedString {
     var u = URLComponents(); u.scheme = "say"; u.host = lang; u.queryItems = [URLQueryItem(name: "t", value: text)]
@@ -98,7 +120,7 @@ let cardWidth: CGFloat = 460
 // whether they start closed, as the card's Collapse all left them for the next cards.
 var shownCard: (entry: Entry, status: String)?
 var toggled = Set<Int>()
-var sectionStart: [Int: Int] = [:]  // each section's title, by its character position, for a flag's click
+var sectionStart: [Int: Int] = [:]  // each section's title, by its character position, for a badge's click
 let collapsedKey = "sectionsCollapsed"
 var collapsedByDefault: Bool { UserDefaults.standard.bool(forKey: collapsedKey) }
 
@@ -111,13 +133,15 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
     if !e.ipa.isEmpty { out.append(run("  | \(e.ipa) |", serif(16, .regular), .secondaryLabelColor)) }
     out.append(speaker(e.word, e.lang))
     for (code, words) in e.tr where !words.isEmpty {
-        let flag = NSMutableAttributedString(attributedString: run("\n" + (pack(code)?.flag ?? code.uppercased()) + "  ", .systemFont(ofSize: 15)))
-        // the flag leads to its language's dictionary below ("Greek – English"), when the card has one
+        out.append(run("\n", .systemFont(ofSize: 15)))
+        let tag = NSMutableAttributedString(attributedString: badge(code))
+        // the badge leads to its language's dictionary below ("Greek – English"), when the card has one
         if let name = pack(code)?.name, let i = e.sections.firstIndex(where: { $0.0.contains(name) }) {
-            flag.addAttributes([.link: URL(string: "lookupword://section/\(i)")!, .cursor: NSCursor.pointingHand],
-                               range: NSRange(location: 1, length: flag.length - 3))
+            tag.addAttributes([.link: URL(string: "lookupword://section/\(i)")!, .cursor: NSCursor.pointingHand],
+                              range: NSRange(location: 0, length: tag.length))
         }
-        out.append(flag)
+        out.append(tag)
+        out.append(run("  ", .systemFont(ofSize: 15)))
         out.append(run(words, serif(17, .semibold)))
         out.append(speaker(words, code))
     }

@@ -1,7 +1,6 @@
 {
   "code": "en",
   "name": "English",
-  "flag": "🇬🇧",
   "voice": "en-GB",
   "monolingual": "English",
   "dictionaryIds": ["com.apple.dictionary.ODE"],

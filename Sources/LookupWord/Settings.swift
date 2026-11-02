@@ -5,7 +5,7 @@ import ScreenCaptureKit
 import SwiftUI
 
 final class SettingsModel: ObservableObject {
-    struct Language: Identifiable { var id: String { code }; var code: String; var name: String; var flag: String; var missing: [String]; var ids: [String] }
+    struct Language: Identifiable { var id: String { code }; var code: String; var name: String; var missing: [String]; var ids: [String] }
 
     @Published var languages: Set<String>
     @Published var hotkey: String
@@ -33,7 +33,7 @@ final class SettingsModel: ObservableObject {
         storePath = file.store.path ?? ""
         saveDate = file.store.saveDate
         available = availablePacks.compactMap(loadPack).map { p in
-            Language(code: p.code, name: p.name, flag: p.flag ?? "", missing: [p.monolingual, p.bilingual].compactMap { $0 }.filter { dictionaries[$0] == nil },
+            Language(code: p.code, name: p.name, missing: [p.monolingual, p.bilingual].compactMap { $0 }.filter { dictionaries[$0] == nil },
                      ids: p.dictionaryIds ?? [])
         }.sorted { ($0.code == "en" ? "" : $0.name) < ($1.code == "en" ? "" : $1.name) }
         saved = snapshot
@@ -153,7 +153,12 @@ struct SettingsView: View {
                             Toggle(isOn: Binding(get: { model.languages.contains(lang.code) },
                                                  set: { on in if on { model.languages.insert(lang.code) } else { model.languages.remove(lang.code) } })) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(lang.flag)  \(lang.name)")
+                                    HStack(spacing: 8) {  // its code, as the card shows it
+                                        Text(lang.code.uppercased()).font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                            .foregroundStyle(.secondary).frame(width: 24, height: 15)
+                                            .background(RoundedRectangle(cornerRadius: 4).fill(Color(nsColor: .quaternaryLabelColor)))
+                                        Text(lang.name)
+                                    }
                                     if lang.code == "en" {
                                         Text("Always on: other languages translate through English").font(.caption).foregroundStyle(.secondary)
                                     }

@@ -26,7 +26,6 @@ struct PackLink: Decodable {
 struct Pack: Decodable {
     var code: String  // ISO 639-1
     var name: String  // in English: "Dutch"
-    var flag: String?
     var voice: String  // AVSpeechSynthesisVoice language: "nl-NL"
     var monolingual: String?  // Dictionary.app short names: "Dutch"…
     var bilingual: String?  // …"Dutch - English"; none for English itself
@@ -48,7 +47,7 @@ struct Pack: Decodable {
     var dir = URL(fileURLWithPath: "/")
 
     enum CodingKeys: String, CodingKey {
-        case code, name, flag, voice, monolingual, bilingual, dictionaryIds, script, recognizer, ocr, spellChecker, verb, verbLabels,
+        case code, name, voice, monolingual, bilingual, dictionaryIds, script, recognizer, ocr, spellChecker, verb, verbLabels,
              intransitiveLabels, partLabels,
              stripHints, lemmas, translations, links, gloss
     }

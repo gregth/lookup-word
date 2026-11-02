@@ -170,7 +170,7 @@ and the card appears; the third is a box to type into. To close it, click anywhe
 ### On the card
 
 - **Click the speaker** next to a word to hear it, in its own language's voice.
-- **Click a flag** to jump to that language's dictionary entry further down the card.
+- **Click a language's code** (NL, EL…) to jump to that language's dictionary entry further down the card.
 - **Click a dictionary's name** (▾) to fold its entry away, or **Collapse all** at the card's foot to fold them all;
   the cards after keep it that way until you choose **Expand all**.
 - **Read more** at the foot links to that language's dictionaries online: Cambridge, Merriam-Webster, Woorden.org,

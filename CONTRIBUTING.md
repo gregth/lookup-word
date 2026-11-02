@@ -24,7 +24,6 @@ dictionary is optional but improves the card.
 {
   "code": "fr",
   "name": "French",
-  "flag": "🇫🇷",
   "voice": "fr-FR",
   "monolingual": "French",
   "bilingual": "French - English",
@@ -40,7 +39,7 @@ dictionary is optional but improves the card.
 
 | Key | What it is |
 |---|---|
-| `code`, `name`, `flag` | The ISO 639-1 code, the English name, and the flag shown before the translation. |
+| `code`, `name` | The ISO 639-1 code, shown in a badge before the translation (FR), and the English name. |
 | `voice` | The `AVSpeechSynthesisVoice` language for the 🔈. |
 | `monolingual`, `bilingual` | Dictionary short names, exactly as `--dictionaries` prints them. |
 | `dictionaryIds` | Their identifiers, for the Settings window's **Enable** button: `DictionaryIdentifier` in `/System/Library/AssetsV2/com_apple_MobileAsset_DictionaryServices_dictionary3macOS/*.xml` (`com.apple.dictionary.OxfordFrench`). |
