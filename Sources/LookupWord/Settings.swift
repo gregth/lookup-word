@@ -15,11 +15,12 @@ final class SettingsModel: ObservableObject {
     @Published var storeType: String
     @Published var storePath: String
     @Published var saveDate: Bool
+    @Published var collapsed: Bool  // the card's dictionaries start closed: its Collapse all, kept in UserDefaults
     @Published var enabling: Set<String> = []  // languages whose dictionaries are downloading
     let available: [Language]
-    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var typeKey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool }
-    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, typeKey: typeKey, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate) }
-    var saved = Snapshot(languages: [], hotkey: "", typeKey: "", menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false)
+    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var typeKey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool; var collapsed: Bool }
+    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, typeKey: typeKey, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate, collapsed: collapsed) }
+    var saved = Snapshot(languages: [], hotkey: "", typeKey: "", menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false, collapsed: false)
 
     init() {
         // what the file says now (it may have changed since launch), falling back to the settings in force
@@ -32,6 +33,7 @@ final class SettingsModel: ObservableObject {
         storeType = file.store.type
         storePath = file.store.path ?? ""
         saveDate = file.store.saveDate
+        collapsed = collapsedByDefault
         available = availablePacks.compactMap(loadPack).map { p in
             Language(code: p.code, name: p.name, missing: [p.monolingual, p.bilingual].compactMap { $0 }.filter { dictionaries[$0] == nil },
                      ids: p.dictionaryIds ?? [])
@@ -45,13 +47,13 @@ final class SettingsModel: ObservableObject {
     var defaults: Snapshot {
         let d = Config()
         return Snapshot(languages: Set(d.languages + ["en"]), hotkey: d.hotkey, typeKey: Shortcut.from(d.typeShortcut).id, menuBar: d.menuBar,
-                        closeAfter: d.closeAfter, storeType: d.store.type, storePath: d.store.path ?? "", saveDate: d.store.saveDate)
+                        closeAfter: d.closeAfter, storeType: d.store.type, storePath: d.store.path ?? "", saveDate: d.store.saveDate, collapsed: false)
     }
     var isDefault: Bool { snapshot == defaults }
     func restoreDefaults() {
         let d = defaults
         languages = d.languages; hotkey = d.hotkey; typeKey = d.typeKey; menuBar = d.menuBar
-        closeAfter = d.closeAfter; storeType = d.storeType; storePath = d.storePath; saveDate = d.saveDate
+        closeAfter = d.closeAfter; storeType = d.storeType; storePath = d.storePath; saveDate = d.saveDate; collapsed = d.collapsed
     }
     var defaultPath: String { Paths.support.appendingPathComponent(storeType == "json" ? "vocabulary.json" : "Vocabulary.md").path }
 
@@ -75,6 +77,7 @@ final class SettingsModel: ObservableObject {
         store["path"] = path.isEmpty ? nil : path
         store["saveDate"] = saveDate
         dict["store"] = store
+        if collapsed { UserDefaults.standard.set(true, forKey: collapsedKey) } else { UserDefaults.standard.removeObject(forKey: collapsedKey) }
         if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) {
             try? (data + Data("\n".utf8)).write(to: Paths.config, options: .atomic)
         }
@@ -151,13 +154,20 @@ struct SettingsView: View {
                         ShortcutRecorder(model: model)
                     }
                     Toggle("Show the menu bar icon", isOn: $model.menuBar)
-                    HStack {
-                        Text("Close the card after")
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Close the card after")
+                            Text("Unless the type-a-word box is pinned: its card stays open until you close it.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
                         Spacer()
                         TextField("", value: $model.closeAfter, format: .number).frame(width: 50).multilineTextAlignment(.trailing)
                         Stepper("", value: $model.closeAfter, in: 0...600, step: 5).labelsHidden()
                         Text(model.closeAfter == 0 ? "never" : "seconds").foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
                     }
+                    // the card's Collapse all / Expand all sets it too
+                    Toggle("Show the card's dictionaries expanded", isOn: Binding(get: { !model.collapsed }, set: { model.collapsed = !$0 }))
+                        .help("Off: each dictionary on the card starts closed, a click on its name opens it. The card's Collapse all and Expand all change this too.")
                 } header: { Text("How to look up a word") }
 
                 Section {
