@@ -14,9 +14,9 @@
   "intransitiveLabels": ["onoverg"],
   "stripHints": true,
   "gloss": {
-    "labels": ["bn", "bw", "znw", "ww", "vz", "vnw", "tw", "het", "de", "zelfstandig", "naamwoord", "bijvoeglijk",
-               "werkwoord", "overg", "onoverg", "wederk"],
-    "inner": ["znw", "ww", "hulpww", "bn", "bw", "overg", "onoverg", "voorz", "wederk", "ook"],
+    "labels": ["bn", "bw", "znw", "ww", "vz", "pers", "vnw", "tw", "het", "de", "zelfstandig", "naamwoord", "bijvoeglijk",
+               "werkwoord", "overg", "onoverg", "wederk", "bijw", "telw", "&"],
+    "inner": ["znw", "ww", "hulpww", "bn", "bw", "bijw", "telw", "overg", "onoverg", "voorz", "wederk", "ook"],
     "cuts": ["zie:"]
   }
 }

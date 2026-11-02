@@ -28,14 +28,32 @@ func define(_ word: String, in name: String?, follow: Bool = true) -> String? {
     // an entry that only points elsewhere ("ρωτώ ▶ → ΕΡΩΤΩ", "πάω vi ▶ → πηγαίνω", "größer ▶ groß",
     // "estoy ▶ see estar 1"): the entry it points to, once
     if t.count < 80, let target = group(t, #"▶\s*(?:→|see|ver)?\s*([^\s,.;\d]+)"#) {
-        return define(target.lowercased(), in: name, follow: false) ?? t
+        return pointed(target.lowercased(), from: t, in: name) ?? t
     }
     // an inflected form's stub that names its verb ("ging | ɡɪŋ | 1.u. 3. Pers.Sg.Prät. v. gehen", "gemacht A
     // 2. Part. v. machen B adjective"): that verb's entry
-    if let target = group(String(t.prefix(100)), #"\b(?:Pers|Part)\.[^▸]{0,40}?\bv\.\s+(\p{L}+)\d*(?:\s+B\s|\s*$)"#) {
-        return define(target, in: name, follow: false) ?? t
-    }
+    if let target = stubVerb(t) { return pointed(target, from: t, in: name) ?? t }
     return t
+}
+
+// the verb an inflected form's stub names, with its homograph number ("will | vɪl | 1.u. 3. Pers.Sg.Präsens v.
+// wollen2": wollen2, the modal verb, not wollen1, woollen)
+func stubVerb(_ t: String) -> String? {
+    group(String(t.prefix(100)), #"\b(?:Pers|Part)\.[^▸]{0,40}?\bv\.\s+(\p{L}+\d*)(?:\s+B\s|\s*$)"#)
+}
+
+// The entry a pointer leads to. A pointer from the other language's word leads to that language's word, which an
+// English one can hide: "fue ▶ ir" finds Ir (iridium) before ir (to go).
+func pointed(_ target: String, from t: String, in name: String) -> String? {
+    if let n = group(target, #"(\d+)$"#) {
+        let stem = replacing(target, #"\d+$"#, "")
+        let pattern = "^" + NSRegularExpression.escapedPattern(for: stem) + #" ?(\d+)(?=[\s,|])"#
+        if let r = records(stem, in: name).first(where: { group($0, pattern) == n }) { return r }
+        return pointed(stem, from: t, in: name)
+    }
+    let f = define(target, in: name, follow: false)
+    guard let f, englishSide(f, in: name), !englishSide(t, in: name) else { return f }
+    return records(target, in: name).first { !englishSide($0, in: name) && $0.lowercased().hasPrefix(target) } ?? f
 }
 
 // the first capture group of a pattern's first match
@@ -120,6 +138,14 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil, from: Pack?
         for r in prons.dropFirst() where s.distance(from: last.upperBound, to: r.lowerBound) <= 40 { last = r }
         s = String(s[last.upperBound...])
     } else { s = String(s.drop { !$0.isWhitespace }) }
+    // a usage note in sentences before the part of speech (French - English we: "In standard French, we is translated
+    // by nous but … see this entry. pronoun nous;", few: "When few is used as an adjective …"): the entry starts after it,
+    // when a translation follows before its first example (they: "pronoun ▸ they have …" has none, so the note stays)
+    let pos = #"(?:[A-D] )?(?:(?:masculine|feminine|transitive|intransitive|auxiliary|modal|plural) )?(?:pronoun|noun|adjective|adverb|verb|determiner|preposition|conjunction|exclamation|article|quantifier)\b"#
+    if from ?? target != nil, let r = s.range(of: #"^\s*\p{Lu}[^▸]{20,}?[.!]\s*(?="# + pos + ")", options: .regularExpression),
+       matches(String(s[r.upperBound...].prefix { $0 != "▸" }), "^" + pos + #"[^\p{L}]*\p{L}"#) {
+        s = " " + s[r.upperBound...]
+    }
     // grammar notes before sense 1 (μεταφέρ[ν]ω vt μετέφερα αόρ., … 1carry): the meaning starts at the 1; but not for a
     // noun whose entry opens with its noun part, unnumbered, as then the 1 opens a later part of speech (tree: "znw
     // boom ▸ … overg 1 in een boom jagen", book: "An C βιβλίο ▸ … Bvt 1εγγράφω")
@@ -151,7 +177,7 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil, from: Pack?
     if list, let r = s.range(of: ". ") { s = String(s[..<r.lowerBound]) }
     var words = s.split(separator: " ").map(String.init)
     // a label, also with its section letter glued on (A + nm = "Anm", A + vt = "Avt")
-    let label = { (w: String) in let x = w.trimmingCharacters(in: .punctuationCharacters); return rules.labels.contains(x) || (x.count > 1 && "ABCD".contains(x.first!) && rules.labels.contains(String(x.dropFirst()))) }
+    let label = { (w: String) in let x = w.trimmingCharacters(in: .punctuationCharacters); return rules.labels.contains(x) || rules.labels.contains(w) || (x.count > 1 && "ABCD".contains(x.first!) && rules.labels.contains(String(x.dropFirst()))) }
     while let f = words.first, label(f) || f.allSatisfy(\.isNumber) {
         words.removeFirst()
     }
@@ -336,8 +362,30 @@ func ownEntry(_ word: String, _ t: String?, _ p: Pack) -> String? {
     guard let t, let bilingual = p.bilingual else { return nil }
     var own: String? = t
     if englishSide(t, in: bilingual) {
-        let xs = records(word, in: bilingual).filter { !englishSide($0, in: bilingual) }
+        // an English word's numbered homographs are all English, though only the first carries the pronunciation
+        // ("will 1 | BrE wɪl |", "will 2 A noun … Wille")
+        let all = records(word, in: bilingual)
+        let numbered = #"^([\p{L}'-]+) ?\d+(?=[\s,|])"#
+        let english = Set(all.filter { englishSide($0, in: bilingual) }.compactMap { group($0, numbered) })
+        let xs = all.filter { !englishSide($0, in: bilingual) && !english.contains(group($0, numbered) ?? "") }
         own = xs.first { matches($0.lowercased(), "^" + NSRegularExpression.escapedPattern(for: word.lowercased()) + #"\b"#) } ?? xs.first
+        // an inflected form's stub among them ("war | vaːɐ̯ | 1.u. 3. Pers.Sg.Prät. v. sein1"): the verb's entry
+        if let e = own, let target = stubVerb(e) { own = pointed(target, from: e, in: bilingual) ?? e }
+    }
+    // numbered homographs, the first not always the word's main use: a verb before the rest ("vivir 1 masculine noun
+    // life", "vivir 2 A intransitive verb to be alive"), and past a first one the dictionary marks informal or
+    // regional ("perro 1 adjective (perra) 1 (informal) rotten", "gente 1 adjective (Latin America) respectable");
+    // otherwise the dictionary's order (bonito 1 pretty before bonito 2 tuna, Greek's ιθαγενής1 first)
+    if let e = own, let stem = group(e, #"^([\p{L}'-]+) ?\d+(?=[\s,])"#) {
+        let same = records(stem, in: bilingual).filter {
+            !englishSide($0, in: bilingual) && group($0, #"^([\p{L}'-]+) ?\d+(?=[\s,])"#) == stem
+        }
+        func marked(_ r: String) -> Bool {
+            let label = #"(?:informal|colloquial|slang|vulgar|dated|Latin America|[A-Z][a-z]+ America|Spain|Mexico|Chile|Argentina|Andes|River Plate|Caribbean)"#
+            return matches(String(r.prefix(70)), #"\("# + label + #"(?:, "# + label + #")*\)"#)
+        }
+        if !isVerb(stem, p, e), let v = same.first(where: { isVerb(stem, p, $0) }) { own = v }
+        else if marked(e), let u = same.first(where: { $0 != e && !marked($0) }) { own = u }
     }
     if let e = own, let target = group(String(e.prefix(120)), #"^[^|▶]{1,40}(?:\|[^|]*\|)?\s*(?:A )?(?:(?:masculine|feminine) )?(?:plural )?(?:adjective|past participle|noun)(?: \p{L}+)?(?: \|[^|]*\|)? ▶ ([\p{L}œ'-]+)"#),
        let f = define(target, in: bilingual), !englishSide(f, in: bilingual) {

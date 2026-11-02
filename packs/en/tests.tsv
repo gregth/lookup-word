@@ -18,7 +18,7 @@ hotel	en	nl: hotel
 house	en	nl: huis, woning
 might	en	nl: mochten, zouden mogen
 misunderstanding	en	nl: misverstand, geschil
-nevertheless	en	nl: nonetheless bijw, niettemin, desondanks
+nevertheless	en	niettemin, desondanks
 off	en	nl: van
 ought	en	nl: moeten, behoren
 out	en	nl: tsw
@@ -31,7 +31,7 @@ record	en	nl: aan-, optekening, verslag
 run	en	nl: lopen
 sessions	en	nl: zitting, zittijd, sessie
 set	en	nl: zetten, plaatsen, stellen
-slowly	en	nl: bijw langzaam
+slowly	en	nl: langzaam
 stopped	en	nl: pauzeren, stoppen
 stout	en	nl: lijvig, corpulent, gezet
 table	en	nl: tafel
@@ -41,3 +41,7 @@ water	en	nl: water
 winter	en	nl: winter in de winter stallen overwinteren
 tree	en	nl: boom
 book	en	el: βιβλίο
+few	en	nl: weinig
+always	en	nl: altijd
+we	en	nl: wij, we
+we	en	fr: nous

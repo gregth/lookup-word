@@ -47,19 +47,19 @@ house	en	es: casa
 dog	en	es: perro, macho
 hond	nl	es: perro
 σπίτι	el	es: casa
-# Blocked on code (Spanish - English answers with its English entry, a first homograph or a ▶ see redirect); expected meanings, to enable once fixed:
-# once	es	en: eleven
-# red	es	en: net
-# pie	es	en: foot
-# come	es	en: to eat
-# mar	es	en: sea
-# sol	es	en: sun
-# perro	es	en: dog
-# vivimos	es	en: to be alive
-# dije	es	en: to say
-# quiero	es	en: to love
-# fue	es	en: to go
-# estoy	es	en: to be
-# vamos	es	en: to go
-# buenas	es	en: good
-# gente	es	en: people
+# Words an English or a first homograph hides, and ▶ see redirects (code since 2026-11-02):
+once	es	en: eleven
+red	es	en: net
+pie	es	en: foot
+come	es	en: to eat
+# mar	es	en: sea   (still wrong: the abbreviation Mar, March, comes first)
+sol	es	en: sun
+perro	es	en: dog
+vivimos	es	en: to be alive
+dije	es	en: to say
+quiero	es	en: to love
+fue	es	en: to go
+estoy	es	en: to be
+vamos	es	en: to go
+buenas	es	en: good
+gente	es	en: people

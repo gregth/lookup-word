@@ -53,6 +53,7 @@ dictionary is optional but improves the card.
 | `intransitiveLabels` | Optional: of those, the intransitive one(s) (Dutch `onoverg`). Preferred when the English verb's first sense takes no object (*run* → *lopen*, not *laten lopen*). |
 | `stripHints` | `true` when X - English translations start with X words as hints ("gaan walk"). |
 | `lemmas` | A `form⇥lemma` list (`.tsv` or `.tsv.xz`) for languages whose dictionaries don't find base forms. [simplemma](https://github.com/adbar/simplemma) has lists for about 50 languages. Keep its licence notice next to the file. |
+| `translations` | The English for the few words whose entry opens with uses and examples instead of a translation (`{"aller": "to go"}`). Keep it to those: the card shows the entry below. |
 | `gloss` | Grammar labels to drop from translations: `labels` at the start, `inner` anywhere, `cuts` to stop at, `grammarNotes` (abbreviations ending in `.` before the meaning), `variants` (regex and replacement pairs). | `labels` and `inner` are shared by every pack in use (several Oxford dictionaries use the same English labels); `cuts`, `grammarNotes` and `variants` apply only to entries from this pack's dictionary, so one pack's rewrites never change another's.
 
 ### 3. Test it

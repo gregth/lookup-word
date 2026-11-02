@@ -113,6 +113,9 @@ func entry(_ raw: String, hint: String) -> Entry? {
     let b = bilX[lang.code]
     var inEnglish = gloss(b, from: lang)
     if lang.stripHints == true { inEnglish = withoutHints(inEnglish, lang) }
+    // a word whose entry opens with uses and examples, not a translation ("aller A auxiliary verb … je vais partir
+    // I'm leaving"): the pack says it
+    if let t = lang.translations?[word.lowercased()] { inEnglish = t }
     let verb = isVerb(word, lang, lang.script == nil ? b : bil[lang.code])
     // a noun in its own dictionary (boek: "znw boek"), so the English word's noun part is the one to translate
     let noun = !verb && (b.map(opensAsNoun) ?? false), describing = !verb && (b.map(opensAsDescribing) ?? false)

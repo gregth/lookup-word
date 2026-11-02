@@ -35,13 +35,14 @@ struct Pack: Decodable {
     var intransitiveLabels: [String]?  // of those, the intransitive one(s), preferred for a verb whose first sense takes no object
     var stripHints: Bool?  // its X - English translations may start with X words as hints ("gaan walk"): drop them
     var lemmas: String?  // form ⇥ lemma, .tsv or .tsv.xz, for languages whose dictionaries do not lemmatise
+    var translations: [String: String]?  // the English for the few words whose entries open with examples (aller)
     var gloss: GlossRules?
     var dir = URL(fileURLWithPath: "/")
 
     enum CodingKeys: String, CodingKey {
         case code, name, flag, voice, monolingual, bilingual, dictionaryIds, script, recognizer, ocr, spellChecker, verb, verbLabels,
              intransitiveLabels,
-             stripHints, lemmas, gloss
+             stripHints, lemmas, translations, gloss
     }
 
     var isEnglish: Bool { code == "en" }

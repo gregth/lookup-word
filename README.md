@@ -214,8 +214,6 @@ app's own text where the app shares it (Chrome and Electron apps do).
 - Languages without a dictionary between them translate through English, so a translation can be off: the English
   word has meanings of its own, and the other language may pick one the original never had (Dutch *zetten* → *set,
   put* → Greek *κάνω, προκαλώ*, "make, cause"). Check the entry when it matters.
-- French opens its most common verbs (*aller*, *être*, *avoir*, *venir*) with examples, so the card shows an example
-  where a plain translation belongs; the entry below it has the meaning.
 - Hyphenated compounds and numbers read off the screen come back as one token.
 - Screen reading needs readable contrast; tiny or stylised text may misread.
 - Dictionary.app's list of dictionaries, and every entry for a word (French *pain* is also English *pain*), come
