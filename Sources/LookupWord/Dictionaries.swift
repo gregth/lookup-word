@@ -231,6 +231,27 @@ func verbPart(_ t: String, _ p: Pack, intransitive: Bool = false) -> String {
     return String(t[..<pron.upperBound]) + String(t[v.lowerBound...])
 }
 
+// Oxford's first part of speech in an English entry ("why | wʌɪ | interrogative adverb …": adverb).
+func firstPart(_ en: String?) -> String? {
+    guard let en, let pron = en.range(of: #"\|[^|]*\|"#, options: .regularExpression) else { return nil }
+    let head = String(en[pron.upperBound...].prefix(40))
+    return head.range(of: #"\b(noun|adjective|adverb|pronoun|conjunction|preposition|exclamation)\b"#, options: .regularExpression).map { String(head[$0]) }
+}
+
+// The part of an English entry in an X - English dictionary for the word's first part of speech in Oxford (why: Dutch
+// "tsw 1 wel!, wel verdraaid! … bijw waarom", an adverb, so from bijw on), after the headword and pronunciation; the
+// whole entry when the pack maps no labels for that part, the entry has none, or it opens with one (before its
+// pronunciation too: "bow znw | bəʊ | 1 boog … znw | baʊ | 1 buiging").
+func mainPart(_ t: String, _ p: Pack, _ pos: String?) -> String {
+    guard let pos, let labels = p.partLabels?[pos], !labels.isEmpty,
+          let pron = t.range(of: #"\|[^|]*\|"#, options: .regularExpression) else { return t }
+    let rest = t[pron.upperBound...]
+    let own = "(" + labels.joined(separator: "|") + ")"
+    if matches(String(t[..<pron.lowerBound]), #"\s"# + own + #"\s*$"#) || matches(String(rest), #"^\s*[A-D]?"# + own + #"(?=\s|\d|\[)"#) { return t }
+    guard let v = rest.range(of: #"\s[A-D]?("# + labels.joined(separator: "|") + #")(?=\s|\d|\[)"#, options: .regularExpression) else { return t }
+    return String(t[..<pron.upperBound]) + String(t[v.lowerBound...])
+}
+
 // A verb's entry for an English word in an X - English dictionary. Greek - English keeps the noun and the verb of
 // "run" as two entries (run1 n…, run2 vti…), and a lookup returns only the first: so the word's entry that opens with
 // a verb label first, else the verb part of the first entry.
@@ -266,7 +287,7 @@ func via(_ english: String, in p: Pack, verb: Bool = false, noun: Bool = false, 
         guard let t = define(w, in: p.bilingual), englishSide(t, in: p.bilingual), t.lowercased().hasPrefix(w.lowercased()) else { continue }
         // (only an entry with no adjective part at all: "mild | A noun … B adjective 1 léger" has one)
         if describing, !verb, opensAsNoun(t), !matches(t, #"\s[A-D]?(adjective|adj|bn|adverb|adv|bw)\b"#) { later.append((w, t)); continue }
-        let g = gloss(verb ? verbEntry(t, w, p) : t, target: p, from: p, noun: noun)
+        let g = gloss(verb ? verbEntry(t, w, p) : mainPart(t, p, firstPart(define(w, in: pack("en")?.monolingual))), target: p, from: p, noun: noun)
         if !g.isEmpty { return g }
     }
     for (_, t) in later {

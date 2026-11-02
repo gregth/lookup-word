@@ -12,10 +12,12 @@
   "verb": { "entryPattern": "\\s(ww|overg|onoverg)\\b", "prefix": 60 },
   "verbLabels": ["ww", "hulpww", "overg", "onoverg", "wederk"],
   "intransitiveLabels": ["onoverg"],
+  "partLabels": {"noun": ["znw"], "adjective": ["bn"], "adverb": ["bijw", "bw"], "pronoun": ["vnw"], "conjunction": ["voegw"],
+                 "preposition": ["voorz", "vz"], "exclamation": ["tsw"]},
   "stripHints": true,
   "gloss": {
     "labels": ["bn", "bw", "znw", "ww", "vz", "pers", "vnw", "tw", "het", "de", "zelfstandig", "naamwoord", "bijvoeglijk",
-               "werkwoord", "overg", "onoverg", "wederk", "bijw", "telw", "&"],
+               "werkwoord", "overg", "onoverg", "wederk", "bijw", "telw", "tsw", "voegw", "voorz", "&"],
     "inner": ["znw", "ww", "hulpww", "bn", "bw", "bijw", "telw", "overg", "onoverg", "voorz", "wederk", "ook"],
     "cuts": ["zie:"]
   }

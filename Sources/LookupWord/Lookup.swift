@@ -103,7 +103,7 @@ func entry(_ raw: String, hint: String) -> Entry? {
         let tr = others.map { p -> (String, String) in
             guard let t = bil[p.code], englishSide(t, in: p.bilingual) else { return (p.code, "") }
             // (the entries searched by the dictionary's headword: "stopped" is stop's)
-            return (p.code, gloss(verb ? verbEntry(t, word, p, intransitive: intransitive) : t, target: p, from: p, noun: noun))
+            return (p.code, gloss(verb ? verbEntry(t, word, p, intransitive: intransitive) : mainPart(t, p, firstPart(en)), target: p, from: p, noun: noun))
         }
         let sections = [(english.monolingual ?? "English", en)] + others.map { p in (title(p.bilingual ?? p.name), bil[p.code]) }
         return Entry(lang: "en", word: word, ipa: ipa, tr: tr, sections: sections.compactMap { n, t in t.map { (n, $0) } },

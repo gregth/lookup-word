@@ -33,6 +33,8 @@ struct Pack: Decodable {
     var verb: VerbRule?
     var verbLabels: [String]?  // the labels that open the verb part of an English entry in this X - English dictionary
     var intransitiveLabels: [String]?  // of those, the intransitive one(s), preferred for a verb whose first sense takes no object
+    var partLabels: [String: [String]]?  // Oxford's parts of speech ("adverb") → the labels that open that part ("bijw"), for a
+                                         // dictionary whose English entries do not open with the word's main part (why: "tsw … bijw")
     var stripHints: Bool?  // its X - English translations may start with X words as hints ("gaan walk"): drop them
     var lemmas: String?  // form ⇥ lemma, .tsv or .tsv.xz, for languages whose dictionaries do not lemmatise
     var translations: [String: String]?  // the English for the few words whose entries open with examples (aller)
@@ -41,7 +43,7 @@ struct Pack: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case code, name, flag, voice, monolingual, bilingual, dictionaryIds, script, recognizer, ocr, spellChecker, verb, verbLabels,
-             intransitiveLabels,
+             intransitiveLabels, partLabels,
              stripHints, lemmas, translations, gloss
     }
 
