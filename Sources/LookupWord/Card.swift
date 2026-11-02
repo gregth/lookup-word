@@ -195,11 +195,15 @@ func message(_ s: String, action: (title: String, url: String)? = nil) -> NSAttr
     return m
 }
 
-let voice = AVSpeechSynthesizer()
+var voice = AVSpeechSynthesizer(), stopped: AVSpeechSynthesizer?  // (the one stopped, kept until the next)
 // A row of several words ("γιατί, που", "weather · time"): each said on its own, with a short pause between, not one
 // run-on sentence with its commas and the · read out (his report, 2026-11-02: "the speaker sounds abnormal")
 func speak(_ text: String, _ lang: String) {
+    log("say (\(lang)): \(text)")
+    // a new synthesizer each time: one stopped mid-row could drop the words queued right after (a click while a row
+    // still played stayed silent, 1 in 10 clicks in a test)
     voice.stopSpeaking(at: .immediate)
+    stopped = voice; voice = AVSpeechSynthesizer()
     let items = text.components(separatedBy: CharacterSet(charactersIn: ",·;")).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     for item in items.isEmpty ? [text] : items {
         let u = AVSpeechUtterance(string: item)
@@ -210,8 +214,15 @@ func speak(_ text: String, _ lang: String) {
     }
 }
 
+// The card's text. A double-tap shows the card while another app stays active, and a window of an inactive app
+// takes the first click only to activate it: so the first click on a speaker or a link did nothing (his report,
+// 2026-11-02: "the sound does not play some times"). It takes that click too.
+final class CardText: NSTextView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 final class Card: NSViewController, NSTextViewDelegate {
-    let text = NSTextView(frame: NSRect(x: 0, y: 0, width: cardWidth, height: 100))
+    let text = CardText(frame: NSRect(x: 0, y: 0, width: cardWidth, height: 100))
     let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: cardWidth, height: 100))
     override func loadView() {
         text.isEditable = false
