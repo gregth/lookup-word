@@ -42,6 +42,10 @@ if launchctl print gui/$uid/$label >/dev/null 2>&1; then
   echo "The running Lookup Word did not stop; run ./install.sh again." >&2
   exit 1
 fi
+# and a copy not started by the launch agent (opened from Finder, or by an earlier Restart): left running, it keeps
+# the old build answering the shortcut, and the new copy quits on seeing it ("already running")
+pkill -f "^$app/Contents/MacOS/LookupWord" 2>/dev/null || true  # (none running: status 1, which set -e would stop on)
+for _ in {1..50}; do pgrep -f "^$app/Contents/MacOS/LookupWord" >/dev/null || break; sleep 0.1; done
 
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$logs" "${plist:h}"
 # a new file, not the old one rewritten in place (macOS caches a running binary's signature by its file)

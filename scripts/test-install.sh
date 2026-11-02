@@ -43,6 +43,16 @@ sleep 2
 check "it is running again, as a new process" "running && [[ \$(pid) != '$first' ]]"
 check "the settings survive" "grep -q '\"menuBar\": false' $LOOKUP_SUPPORT/config.json"
 
+echo "— reinstall with a copy running outside the launch agent (opened from Finder, or by an earlier Restart)"
+launchctl bootout gui/$uid/$LOOKUP_LABEL 2>/dev/null; sleep 1
+"$app/Contents/MacOS/LookupWord" >/dev/null 2>&1 &
+stray=$!; sleep 2
+"$root/install.sh" </dev/null >>$tmp/install.log 2>&1
+check "install.sh succeeds" "[[ $? == 0 ]]"
+sleep 2
+check "the stray copy is gone" "! kill -0 $stray 2>/dev/null"
+check "the launch agent's copy runs instead" "running"
+
 echo "— the app's own uninstall (the menu's code)"
 out=$("$app/Contents/MacOS/LookupWord" --uninstall 2>&1); code=$?
 echo "$out" | sed 's/^/      /'

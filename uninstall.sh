@@ -12,6 +12,9 @@ logs=${LOOKUP_LOGS:-$HOME/Library/Logs/Lookup Word}
 failed=() note=""
 launchctl bootout gui/$(id -u)/$label 2>/dev/null
 for _ in {1..50}; do launchctl print gui/$(id -u)/$label >/dev/null 2>&1 || break; sleep 0.1; done
+# a copy not started by the launch agent too, or it keeps running with the app gone
+pkill -f "^$app/Contents/MacOS/LookupWord" 2>/dev/null || true
+for _ in {1..50}; do pgrep -f "^$app/Contents/MacOS/LookupWord" >/dev/null || break; sleep 0.1; done
 # the permissions before the app goes: tccutil finds the app by its identifier through macOS's app registry, which
 # forgets it once the app is deleted ("No such bundle identifier")
 if [[ -d $app ]]; then
