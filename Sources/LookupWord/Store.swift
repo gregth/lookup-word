@@ -175,7 +175,7 @@ struct MarkdownStore: VocabularyStore {
             guard line.hasPrefix("##"), !line.hasPrefix("###") else { return false }
             return names.contains(line.dropFirst(2).trimmingCharacters(in: .whitespaces).lowercased())
         }) else { return nil }
-        return i..<(lines.indices.first { $0 > i && lines[$0].hasPrefix("## ") } ?? lines.count)
+        return i..<(lines.indices.first { $0 > i && lines[$0].hasPrefix("##") && !lines[$0].hasPrefix("###") } ?? lines.count)
     }
 
     // the section's word table: its header line and its last row (the first run of | lines; a table further down the
@@ -200,6 +200,10 @@ struct MarkdownStore: VocabularyStore {
         for _ in 0..<3 {  // again when another program changed the file between our read and our write
             let (text, why) = read()
             guard let old = text else { return "Not saved: \(why)." }
+            // a JSON file (the path kept from the JSON store, after switching to Markdown) must not get tables appended
+            if (try? JSONSerialization.jsonObject(with: Data(old.utf8))) != nil {
+                return "Not saved: \(name) is a JSON file. Choose a Markdown file in Settings, or save words to a JSON file."
+            }
             switch insert(old, e) {
             case .status(let s): return s
             case .text(let new, let note): if write(old, new) { return "Saved to \(heading(e.lang))." + note }
