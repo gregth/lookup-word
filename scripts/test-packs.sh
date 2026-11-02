@@ -1,6 +1,7 @@
 #!/bin/zsh
 # Looks up each pack's test words and checks the entry: packs/<code>/tests.tsv, one line per word,
-# word ⇥ hint ⇥ expected, where expected is text the --text output must contain (a translation, the headword).
+# word ⇥ hint ⇥ expected, where expected is text the --text output must contain (a translation, the headword), or,
+# after a !, text it must not (a leaked example: !Cairo).
 # Needs the dictionaries enabled in Dictionary.app. Run from anywhere: ./scripts/test-packs.sh [code…]
 set -uo pipefail
 root=${0:A:h:h}
@@ -16,7 +17,9 @@ for code in $codes; do
   while IFS=$'\t' read -r word hint expected; do
     [[ -z $word || $word == \#* ]] && continue
     out=$(LOOKUP_SUPPORT=$support "$bin" --text "$word" "$hint" 2>/dev/null)
-    if [[ $out == *"$expected"* ]]; then (( pass++ )); else (( fail++ )); echo "FAIL $code: $word ($hint) lacks \"$expected\""; echo "$out" | sed 's/^/     /'; fi
+    if [[ $expected == !* ]]; then
+      if [[ $out != *"${expected#!}"* ]]; then (( pass++ )); else (( fail++ )); echo "FAIL $code: $word ($hint) has \"${expected#!}\""; echo "$out" | sed 's/^/     /'; fi
+    elif [[ $out == *"$expected"* ]]; then (( pass++ )); else (( fail++ )); echo "FAIL $code: $word ($hint) lacks \"$expected\""; echo "$out" | sed 's/^/     /'; fi
   done < "$tests"
 done
 rm -rf "$support"

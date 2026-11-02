@@ -25,6 +25,7 @@
       ["([›»][^‹«▸]*?\\p{L}[^‹«▸]*?)\\s*[‹«][^›»]*[›»]", "$1 ▸"],
       ["[‹«][^›»]*[›»]:?\\s*", ""],
       ["(?<!\\p{L})(\\p{L}+) \\1(?!\\p{L})", "$1"],
+      ["(?<=[\\s›]\\p{Ll}{1,20}[aeií]r(?:se)?) (?=(?:\\p{Ll}+[aeií]r(?:se)? )+\\((?:formal|informal|literary|colloquial|dated|(?:mainly |especially )?(?:Latin America|Spain|Mexico|River Plate|Southern Cone|Andes|Caribbean))\\b)", ", "],
       ["(?<=\\p{Ll}) (?=\\p{Ll}+ \\((?:mainly |especially )?(?:Latin America|Spain|Mexico|River Plate|Southern Cone|Andes|Caribbean)\\b)", ", "]
     ]
   }

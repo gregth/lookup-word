@@ -377,10 +377,7 @@ func onClose(_ w: NSWindow, _ f: @escaping () -> Void) {
 func enableDictionaries(_ ids: [String]) {
     let app = "com.apple.DictionaryServices" as CFString, key = "DCSActiveDictionaries" as CFString
     var active = CFPreferencesCopyAppValue(key, app) as? [String]
-    if active == nil, let f = dlsym(dlopen(nil, RTLD_NOW), "DCSDictionaryGetIdentifier") {
-        let id = unsafeBitCast(f, to: NameFn.self)
-        active = dictionaries.values.compactMap { id($0)?.takeUnretainedValue() as String? }
-    }
+    if active == nil { active = installedDictionaries.map(\.id) }
     var list = active ?? []
     list += ids.filter { !list.contains($0) }
     CFPreferencesSetAppValue(key, list as CFArray, app)

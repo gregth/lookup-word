@@ -7,14 +7,26 @@ import Foundation
 
 typealias AvailFn = @convention(c) () -> Unmanaged<CFSet>?
 typealias NameFn = @convention(c) (AnyObject) -> Unmanaged<CFString>?
-let dictionaries: [String: AnyObject] = {
+// Every dictionary in use, with its identifier and short name, in identifier order (the set has none).
+let installedDictionaries: [(id: String, name: String, dictionary: AnyObject)] = {
     let h = dlopen(nil, RTLD_NOW)
     guard let a = dlsym(h, "DCSCopyAvailableDictionaries"), let n = dlsym(h, "DCSDictionaryGetShortName"),
-          let set = unsafeBitCast(a, to: AvailFn.self)()?.takeRetainedValue() else { return [:] }
-    let name = unsafeBitCast(n, to: NameFn.self)
-    var out: [String: AnyObject] = [:]
-    for d in (set as NSSet).allObjects as [AnyObject] {
-        if let s = name(d)?.takeUnretainedValue() as String? { out[s] = d }
+          let i = dlsym(h, "DCSDictionaryGetIdentifier"),
+          let set = unsafeBitCast(a, to: AvailFn.self)()?.takeRetainedValue() else { return [] }
+    let name = unsafeBitCast(n, to: NameFn.self), id = unsafeBitCast(i, to: NameFn.self)
+    return ((set as NSSet).allObjects as [AnyObject]).compactMap { d in
+        guard let s = name(d)?.takeUnretainedValue() as String?, let k = id(d)?.takeUnretainedValue() as String? else { return nil }
+        return (k, s, d)
+    }.sorted { $0.id < $1.id }
+}()
+// By short name. Two can share one (the Oxford Dictionary of English and the New Oxford American Dictionary are both
+// "English"): the one a pack names in its dictionaryIds wins, else the first by identifier, so every run reads the same.
+let dictionaries: [String: AnyObject] = {
+    let wanted = Set(packs.flatMap { $0.dictionaryIds ?? [] })
+    var out: [String: AnyObject] = [:], chosen = Set<String>()
+    for d in installedDictionaries where !chosen.contains(d.name) && (out[d.name] == nil || wanted.contains(d.id)) {
+        out[d.name] = d.dictionary
+        if wanted.contains(d.id) { chosen.insert(d.name) }
     }
     return out
 }()
@@ -174,6 +186,8 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil, from: Pack?
     }
     // the next sense, wherever its number stands ("calculating machine 2", "hangen 2, helling 3")
     if let r = s.range(of: #"\s\d{1,2}(?=\s|$|,|[\p{L}\[<])"#, options: .regularExpression) { s = String(s[..<r.lowerBound]) }
+    // an optional part in brackets that opens a word goes, the word keeping its capital ("[Groß]stadt": Stadt)
+    s = s.replacing(#/\[\p{Lu}[^\]\s]*\](\p{Ll})/#) { $0.output.1.uppercased() }
     s = replacing(s, #"<[^>]*>|\[[^\]]*\]|\bv\. \S+( &)?"#, " ")
     if list, let r = s.range(of: ". ") { s = String(s[..<r.lowerBound]) }
     var words = s.split(separator: " ").map(String.init)
@@ -214,8 +228,21 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil, from: Pack?
     }
     return s.split(separator: ",").map { unlabelled($0.trimmingCharacters(in: .whitespaces)) }
         .map { example($0) && $0.lowercased().hasPrefix(word + " ") ? String($0.prefix(word.count)) : $0 }
-        .filter { $0.filter(\.isLetter).count > 1 && !example($0) && seen.insert($0.lowercased()).inserted }.prefix(3)
+        .filter { $0.filter(\.isLetter).count > 1 && !example($0) && !repeated($0, seen) && seen.insert($0.lowercased()).inserted }.prefix(3)
         .joined(separator: ", ")
+}
+
+// An item that is an earlier one with an article or particle before it ("Mensch, der Mensch", "Frau · die Frau")
+func repeated(_ item: String, _ seen: Set<String>) -> Bool {
+    let w = item.lowercased().split(separator: " ")
+    return w.count == 2 && w[0].count <= 3 && seen.contains(String(w[1]))
+}
+
+// Whether a word is the looked-up word or a regular English form of it (want: wanted, wants, wanting)
+func ownForm(_ w: String, _ word: String) -> Bool {
+    guard !word.isEmpty, w.hasPrefix(word) || (word.hasSuffix("e") && w.hasPrefix(word.dropLast())) else { return false }
+    let base = w.hasPrefix(word) ? word : String(word.dropLast())
+    return ["", "s", "es", "d", "ed", "ing"].contains(String(w.dropFirst(base.count)))
 }
 
 // An X - English translation without the X hint before it (Dutch liep: "gaan walk, go"; mooie: "aantrekkelijk
@@ -471,6 +498,7 @@ func senses(_ entry: String?, target: Pack? = nil, from: Pack? = nil, noun: Bool
         guard out.count < 3, let item = g.split(separator: ",").first.map({ $0.trimmingCharacters(in: .whitespaces) }), !item.isEmpty,
               item.split(separator: " ").count <= 3, !item.contains(where: { $0.isNumber || $0 == "/" }),  // (an example's "tierra/nieve")
               word.isEmpty || !item.lowercased().split(separator: " ").contains(Substring(word)),
+              !item.contains("≈"), !repeated(item, seen),  // (not an approximate equivalent: city "(US) ≈ Stadtgemeinde")
               target?.script.map({ matches(item, #"\p{"# + $0 + "}") }) ?? true,
               target.map({ t in t.isEnglish || t.script != nil || define(item, in: t.monolingual) != nil || define(item, in: english.monolingual) == nil }) ?? true,
               // (English from another language's dictionary: an English word, not a hint left in that language, huis "geslacht")
@@ -496,6 +524,10 @@ func senses(_ entry: String?, target: Pack? = nil, from: Pack? = nil, noun: Bool
             after = r.upperBound
             let rest = e[r.upperBound...].drop { $0.isWhitespace }
             if matches(String(rest.prefix(12)), #"^[<(](?:vulg|vulgar|sl|slang)\b"#) { continue }  // not head's "3 <vulg> orale seks"
+            // nor a sense that opens with the word itself, a phrase or an example the dictionary gave no ▸ (want:
+            // "3 wanted [by the police] [polizeilich] gesucht", man: "3 a (representative, employee) our man in Cairo …")
+            let opening = replacing(replacing(String(rest.prefix(120).prefix { $0 != "▸" }), #"\([^)]*\)|\[[^\]]*\]|<[^>]*>|‹[^›]*›"#, " "), #"^\s*[a-d]\s"#, "")
+            if opening.split(separator: " ").prefix(3).contains(where: { ownForm($0.lowercased().trimmingCharacters(in: .punctuationCharacters), word) }) { continue }
             add(gloss(head + "1 " + rest, target: target, from: from, noun: noun))
         }
     }
