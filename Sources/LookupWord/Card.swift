@@ -170,8 +170,8 @@ final class Card: NSViewController, NSTextViewDelegate {
     func textView(_ v: NSTextView, clickedOnLink link: Any, at i: Int) -> Bool {
         if let u = link as? URL, u.scheme == "lookupword" {
             switch (u.host ?? "") + u.path {
-            case "open/accessibility": NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-            case "open/screen-recording": NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+            case "open/accessibility": askPermission("Privacy_Accessibility")
+            case "open/screen-recording": askPermission("Privacy_ScreenCapture")
             default: return false
             }
             return true

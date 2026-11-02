@@ -192,10 +192,18 @@ struct HowRow: View {
             Spacer()
             if allowed { Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green).labelStyle(.titleAndIcon) }
             else {
-                Button("Allow…") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!) }
+                Button("Allow…") { askPermission(pane) }
             }
         }
     }
+}
+
+// A permission asked for, then its Settings page opened. macOS lists an app under a permission only once the app has
+// asked for it, so opening the page alone left Lookup Word missing from the Screen Recording list.
+func askPermission(_ pane: String) {
+    if pane == "Privacy_ScreenCapture" { _ = CGRequestScreenCaptureAccess() }
+    else { _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) }
+    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!)
 }
 
 // one settings window at a time, brought to the front
@@ -243,7 +251,10 @@ func restart() {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         p.arguments = ["kickstart", "-k", "gui/\(getuid())/\(agentLabel)"]
-        if (try? p.run()) != nil { p.waitUntilExit() }  // on success launchd stops this process before it returns
+        if (try? p.run()) != nil { p.waitUntilExit() }
+        // launchctl answers before launchd has stopped this copy: wait to be stopped, rather than also opening a new
+        // copy below (which left two running, two menu bar icons)
+        if p.terminationStatus == 0 { Thread.sleep(forTimeInterval: 10); exit(1) }
     }
     let cfg = NSWorkspace.OpenConfiguration()
     cfg.createsNewApplicationInstance = true

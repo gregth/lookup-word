@@ -16,15 +16,9 @@ final class WelcomeModel: ObservableObject {
             if !self.screen, CGPreflightScreenCaptureAccess() { self.screen = true }
         }
     }
-    func openAccessibility() {
-        // the prompt adds Lookup Word to the list (switched off), so there is nothing to find or drag in
-        _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-    }
-    func openScreenRecording() {
-        _ = CGRequestScreenCaptureAccess()  // macOS's own prompt, the first time; it adds the app to the list
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
-    }
+    // asking adds Lookup Word to the setting's list (switched off), so there is nothing to find or drag in
+    func openAccessibility() { askPermission("Privacy_Accessibility") }
+    func openScreenRecording() { askPermission("Privacy_ScreenCapture") }
 }
 
 struct PermissionRow: View {
@@ -91,7 +85,8 @@ struct WelcomeView: View {
 // the app's own icon: from its bundle, or from the source tree's docs/ for a copy run from the build folder
 var appIcon: NSImage {
     let docs = Paths.packs.deletingLastPathComponent().appendingPathComponent("docs/AppIcon.icns")
-    return (Bundle.main.url(forResource: "AppIcon", withExtension: "icns") ?? docs).flatMap { NSImage(contentsOf: $0) } ?? NSApp.applicationIconImage
+    let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") ?? docs
+    return NSImage(contentsOf: url) ?? NSApp.applicationIconImage
 }
 
 // the first launch, remembered, so the window shows once with both permissions and afterwards only while

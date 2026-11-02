@@ -114,10 +114,14 @@ func onKey(_ e: NSEvent) {
 
 final class Menu: NSObject {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    let needs = NSMenuItem(title: "⚠︎ Not working yet: allow Accessibility…", action: #selector(welcome), keyEquivalent: "")
+    let pointing = NSMenuItem(title: "Allow pointing at words (Screen Recording)…", action: #selector(allowPointing), keyEquivalent: "")
     override init() {
         super.init()
-        item.button?.image = NSImage(systemSymbolName: "character.book.closed", accessibilityDescription: "Lookup Word")
         let m = NSMenu()
+        needs.target = self; pointing.target = self
+        m.addItem(needs)
+        m.addItem(pointing)
         m.addItem(NSMenuItem(title: "Select or point at a word, then press \(hotkey.symbol) twice", action: nil, keyEquivalent: ""))
         m.addItem(.separator())
         if store.url != nil { add(m, "Open Vocabulary", #selector(vocabulary)) }
@@ -128,7 +132,37 @@ final class Menu: NSObject {
         if isInstalledApp { add(m, "Uninstall Lookup Word…", #selector(uninstall)) }  // never in a copy run from the build folder
         add(m, "Quit Lookup Word", #selector(quit))
         item.menu = m
+        refresh()
     }
+    // Without Accessibility the app cannot see the key presses, so nothing at all happens when they are pressed: the
+    // icon says so (a warning sign in place of the book), and the menu's first line leads to the welcome window.
+    // the warning: a small orange badge over the book's corner, as on an app's icon; the book itself stays a template
+    // image, so it keeps the menu bar's own colour in light and dark
+    let badge: NSImageView = {
+        let v = NSImageView()
+        let config = NSImage.SymbolConfiguration(pointSize: 8, weight: .bold).applying(.init(paletteColors: [.white, .systemOrange]))
+        v.image = NSImage(systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil)?.withSymbolConfiguration(config)
+        v.isHidden = true
+        return v
+    }()
+    func refresh() {
+        let ok = AXIsProcessTrusted()
+        if item.button?.image == nil {
+            item.button?.image = NSImage(systemSymbolName: "character.book.closed", accessibilityDescription: "Lookup Word")
+        }
+        if let b = item.button, badge.superview == nil {
+            b.addSubview(badge)
+            badge.frame = NSRect(x: b.bounds.maxX - 11, y: b.bounds.maxY - 11, width: 10, height: 10)
+            badge.autoresizingMask = [.minXMargin, .minYMargin]
+        }
+        badge.isHidden = ok
+        item.button?.setAccessibilityLabel(ok ? "Lookup Word" : "Lookup Word needs a permission")
+        item.button?.toolTip = ok ? nil : "Lookup Word needs the Accessibility permission to work"
+        needs.isHidden = ok
+        pointing.isHidden = !ok || CGPreflightScreenCaptureAccess()  // the optional one, once the required one is there
+    }
+    @objc func welcome() { showWelcome() }
+    @objc func allowPointing() { askPermission("Privacy_ScreenCapture") }
     func add(_ m: NSMenu, _ title: String, _ sel: Selector) {
         let i = NSMenuItem(title: title, action: sel, keyEquivalent: ""); i.target = self; m.addItem(i)
     }
@@ -377,13 +411,21 @@ let app = NSApplication.shared
 DispatchQueue.main.async { for p in packs where p.lemmas != nil { _ = lemma("", p) } }  // read lemma lists at start, not on first use
 app.setActivationPolicy(.accessory)
 watchKeys()
-var menu = config.menuBar ? Menu() : nil
+var menu = config.menuBar || !AXIsProcessTrusted() ? Menu() : nil  // shown while it cannot work, even when hidden
+// the icon kept up to date with the permission: back to the book once it is given (and gone again if the settings
+// hide it), a warning again if it is taken away
+Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
+    if !AXIsProcessTrusted(), menu == nil { menu = Menu() }
+    if AXIsProcessTrusted(), !config.menuBar, let m = menu { NSStatusBar.system.removeStatusItem(m.item); menu = nil }
+    menu?.refresh()
+}
 if shouldWelcome() { DispatchQueue.main.async { showWelcome() } }  // the first launch, or while Accessibility is missing
 
 // Opening the app while it runs (double-clicking it in Applications, Spotlight) shows its settings.
 final class Delegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        showSettings()  // the way in when the icon is hidden; the icon itself stays as the settings say
+        // the way in when the icon is hidden: the welcome while it cannot work yet, else the settings
+        if AXIsProcessTrusted() { showSettings() } else { showWelcome() }
         return false
     }
 }
