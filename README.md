@@ -128,7 +128,13 @@ and the card appears; the third is a box to type into. To close it, click anywhe
 
 - Press **⌃⌘L** (Control, Command and L together; you can choose another in Settings) in any app, or choose **Look Up a Word…** in the menu bar menu.
   A box opens near the top of the screen: type the word, in any of your languages, and press Return. Its card
-  shows below the box. Escape closes it.
+  shows below the box, and the box keeps the keyboard, so you can type the next word straight away.
+- **Escape** closes the card; press it again to close the box. A click anywhere else closes both.
+- **The pin** (📌 at the box's right end) keeps the box open: with it on, clicking elsewhere leaves the box where it
+  is, ready for the next word, and the card no longer closes by itself after 30 seconds. Escape still closes the
+  card, then the box. Click the pin again to turn it off.
+- **Drag the box** anywhere: it opens there next time. To put it back in the middle, choose **Reset the Box's
+  Position** in the menu bar menu, or in Settings.
 - This needs no permission at all, so it works even before you allow the other two.
 
 ### On the card

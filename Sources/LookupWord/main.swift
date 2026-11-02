@@ -142,6 +142,7 @@ final class Menu: NSObject {
         typed.target = self
         typed.image = NSImage(systemSymbolName: "character.cursor.ibeam", accessibilityDescription: nil)
         m.addItem(typed)
+        add(m, "Reset the Box's Position", #selector(resetBox), symbol: "arrow.up.and.down.and.arrow.left.and.right")
         if store.url != nil { add(m, "Open Vocabulary", #selector(vocabulary), key: "o", symbol: "book") }
         add(m, "Settings…", #selector(settings), key: ",", symbol: "gearshape")
         m.addItem(.separator())
@@ -181,6 +182,7 @@ final class Menu: NSObject {
     }
     @objc func welcome() { showWelcome() }
     @objc func typeWord() { showTypeBox() }
+    @objc func resetBox() { resetTypeBoxPosition() }  // centred again, a fifth of the way down the screen
     // the standard About panel: the icon, name and version from the app's bundle, and these credits
     @objc func about() {
         NSApp.activate(ignoringOtherApps: true)

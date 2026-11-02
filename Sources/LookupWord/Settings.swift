@@ -111,6 +111,9 @@ struct SettingsView: View {
                             Text("Or type a word, with a shortcut")
                             Text("Press it in any app: a box opens; type the word and press Return. Needs no permission.")
                                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            Button("Reset the box's position") { resetTypeBoxPosition() }
+                                .buttonStyle(.link).font(.caption)
+                                .help("The box opens where you last dragged it; this centres it again.")
                             if typeShortcutTaken && model.typeKey == typeShortcut.id {
                                 Text("\(typeShortcut.symbol) is taken by another app: choose another.").font(.caption).foregroundStyle(.orange)
                             }
