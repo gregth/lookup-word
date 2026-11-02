@@ -55,7 +55,7 @@ func lookUp() {
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { _ in close() }
     if config.closeAfter > 0 { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
     if !AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
-        present(message("Lookup Word can't notice the keys or read the word you selected yet: it needs the permission macOS calls Accessibility. Click below, turn on the switch next to Lookup Word, then try again.", action: ("Open the setting", "lookupword://open/accessibility")), at: nil)
+        present(message("Lookup Word can't notice the keys or read the word you selected yet: it needs the permission macOS calls Accessibility. Click Allow: macOS asks you, and lets you turn it on. Then try again.", action: ("Allow…", "lookupword://open/accessibility")), at: nil)
     } else if let (word, rect, around) = selection() {
         show(word, rect, around, mine)
     } else {
@@ -80,7 +80,7 @@ func readPointer(_ mouse: NSPoint, _ mine: Int) {
             } else { show(r.word, rect, r.around, mine) }
         }
         else if !CGPreflightScreenCaptureAccess() {
-            update(message("\(whyScreen)\n\nTo allow it, click below and turn on the switch next to Lookup Word (macOS may ask to quit and reopen it). Or select the word instead, then \(pressTwice).", action: ("Open the setting", "lookupword://open/screen-recording")))
+            update(message("\(whyScreen)\n\nTo allow it, click Allow: macOS asks you, and lets you turn it on (it may ask to quit and reopen Lookup Word). Or select the word instead, then \(pressTwice).", action: ("Allow…", "lookupword://open/screen-recording")))
         } else {
             update(message("No word found under the mouse pointer.\n\n\(howSelect)\n\nOr: \(howPoint)"))
         }
@@ -120,17 +120,25 @@ final class Menu: NSObject {
         super.init()
         let m = NSMenu()
         needs.target = self; pointing.target = self
+        add(m, "About Lookup Word", #selector(about), symbol: "info.circle")
+        m.addItem(.separator())
+        // what to do, and what still stops it from working (shown only while it does)
+        needs.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(paletteColors: [.systemOrange]))
+        pointing.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: nil)
         m.addItem(needs)
         m.addItem(pointing)
-        m.addItem(NSMenuItem(title: "Select or point at a word, then press \(hotkey.symbol) twice", action: nil, keyEquivalent: ""))
+        let how = NSMenuItem(title: "Select or point at a word, then press \(hotkey.symbol) twice", action: nil, keyEquivalent: "")
+        how.image = NSImage(systemSymbolName: "text.magnifyingglass", accessibilityDescription: nil)
+        m.addItem(how)
         m.addItem(.separator())
-        if store.url != nil { add(m, "Open Vocabulary", #selector(vocabulary)) }
-        add(m, "Settings…", #selector(settings))
-        add(m, "Restart to Apply Settings", #selector(restartNow))
-        add(m, "Hide Menu Bar Icon", #selector(hide))
+        if store.url != nil { add(m, "Open Vocabulary", #selector(vocabulary), key: "o", symbol: "book") }
+        add(m, "Settings…", #selector(settings), key: ",", symbol: "gearshape")
         m.addItem(.separator())
-        if isInstalledApp { add(m, "Uninstall Lookup Word…", #selector(uninstall)) }  // never in a copy run from the build folder
-        add(m, "Quit Lookup Word", #selector(quit))
+        add(m, "Hide Menu Bar Icon", #selector(hide), symbol: "eye.slash")
+        add(m, "Restart Lookup Word", #selector(restartNow), symbol: "arrow.clockwise")
+        if isInstalledApp { add(m, "Uninstall Lookup Word…", #selector(uninstall), symbol: "trash") }  // never in a copy run from the build folder
+        add(m, "Quit Lookup Word", #selector(quit), key: "q", symbol: "power")
         item.menu = m
         refresh()
     }
@@ -162,9 +170,23 @@ final class Menu: NSObject {
         pointing.isHidden = !ok || CGPreflightScreenCaptureAccess()  // the optional one, once the required one is there
     }
     @objc func welcome() { showWelcome() }
+    // the standard About panel: the icon, name and version from the app's bundle, and these credits
+    @objc func about() {
+        NSApp.activate(ignoringOtherApps: true)
+        let small = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let p = NSMutableParagraphStyle(); p.alignment = .center
+        let credits = NSMutableAttributedString(string: "Look up any word on your Mac, in all your languages, offline, and keep the words you looked up.\n\n", attributes: [.font: small, .paragraphStyle: p, .foregroundColor: NSColor.labelColor])
+        credits.append(NSAttributedString(string: "github.com/gregth/lookup-word", attributes: [.font: small, .paragraphStyle: p, .link: URL(string: "https://github.com/gregth/lookup-word")!]))
+        credits.append(NSAttributedString(string: "\n\nMIT License, shared as is, with no warranty. Dictionary content comes from the dictionaries on your Mac and belongs to their publishers. Greek word forms from simplemma (Adrien Barbaresi) and its sources.", attributes: [.font: small, .paragraphStyle: p, .foregroundColor: NSColor.secondaryLabelColor]))
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits, .applicationName: "Lookup Word",
+                                                     .applicationIcon: appIcon])
+    }
     @objc func allowPointing() { askPermission("Privacy_ScreenCapture") }
-    func add(_ m: NSMenu, _ title: String, _ sel: Selector) {
-        let i = NSMenuItem(title: title, action: sel, keyEquivalent: ""); i.target = self; m.addItem(i)
+    func add(_ m: NSMenu, _ title: String, _ sel: Selector, key: String = "", symbol: String? = nil) {
+        let i = NSMenuItem(title: title, action: sel, keyEquivalent: key)
+        i.target = self
+        i.image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
+        m.addItem(i)
     }
     @objc func vocabulary() { if let u = store.url, FileManager.default.fileExists(atPath: u.path) { NSWorkspace.shared.open(u) } }
     @objc func settings() { showSettings() }

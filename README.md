@@ -136,7 +136,7 @@ Menu bar icon → **Settings…**:
 ![The settings window: shortcut, the word under the pointer, menu bar icon, card timeout, languages, and where words are saved](docs/settings.png)
 
 **Save and Restart** applies the changes. They are stored in `~/Library/Application Support/Lookup Word/config.json`,
-written with the defaults on first launch. After editing that file by hand, choose **Restart to Apply Settings** in
+written with the defaults on first launch. After editing that file by hand, choose **Restart Lookup Word** in
 the menu. Every key is optional.
 
 | Key | Default | What it does |

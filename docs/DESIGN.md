@@ -158,7 +158,7 @@ flowchart TD
   P -->|"menu Settings…, or reopening the app"| SW["showSettings(): SettingsModel reads the file"]
   SW -->|"Save and Restart: save() merges its keys"| CF
   SW --> RS["restart()"]
-  P -->|"menu: Restart to Apply Settings"| RS
+  P -->|"menu: Restart Lookup Word"| RS
   RS -->|"launchd's child: launchctl kickstart -k"| P
   RS -->|"started otherwise: open a new copy, then exit(0)"| P
   P -->|"Quit: exit(0)"| STOP["stopped until the next login"]

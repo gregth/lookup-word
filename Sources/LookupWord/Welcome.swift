@@ -16,13 +16,11 @@ final class WelcomeModel: ObservableObject {
             if !self.screen, CGPreflightScreenCaptureAccess() { self.screen = true }
         }
     }
-    // asking adds Lookup Word to the setting's list (switched off), so there is nothing to find or drag in
-    func openAccessibility() { askPermission("Privacy_Accessibility") }
-    func openScreenRecording() { askPermission("Privacy_ScreenCapture") }
 }
 
 struct PermissionRow: View {
-    var title: String, badge: String, text: String, granted: Bool, button: String, action: () -> Void
+    var title: String, badge: String, text: String, granted: Bool, pane: String
+    @ObservedObject var asked = Asked.shared
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: granted ? "checkmark.circle.fill" : "circle").font(.title2)
@@ -37,7 +35,7 @@ struct PermissionRow: View {
             }
             Spacer(minLength: 8)
             if granted { Text("Allowed").font(.callout).foregroundStyle(.secondary) }
-            else { Button(button, action: action) }
+            else { Button(permissionButton(pane)) { askPermission(pane) } }
         }
     }
 }
@@ -59,11 +57,11 @@ struct WelcomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
             PermissionRow(title: "Select a word", badge: "Needed",
                           text: "\(howSelect) For this, Lookup Word needs the permission macOS calls Accessibility, to notice the keys and read the word you selected.",
-                          granted: model.trusted, button: "Allow…", action: model.openAccessibility)
+                          granted: model.trusted, pane: "Privacy_Accessibility")
             PermissionRow(title: "Point at a word", badge: "Optional",
                           text: "\(howPoint) \(whyScreen) You can allow it later: pointing at a word will ask again.",
-                          granted: model.screen, button: "Allow…", action: model.openScreenRecording)
-            Text("When you click Allow, System Settings opens: turn on the switch next to Lookup Word, then come back here. This window updates by itself. For pointing, macOS may ask to quit and reopen Lookup Word.")
+                          granted: model.screen, pane: "Privacy_ScreenCapture")
+            Text("When you click Allow, macOS asks you; choose Open System Settings there, turn on the switch next to Lookup Word, then come back here. This window updates by itself. For pointing, macOS may ask to quit and reopen Lookup Word.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 if model.trusted {

@@ -1,6 +1,7 @@
 // The settings window: every setting as a control, saved to config.json (any other key in the file kept), then a
 // restart to apply them.
 import AppKit
+import ScreenCaptureKit
 import SwiftUI
 
 final class SettingsModel: ObservableObject {
@@ -183,6 +184,7 @@ struct SettingsView: View {
 // one way to look a word up: what to do, what it needs, and whether that is allowed, with a button to allow it
 struct HowRow: View {
     var title: String, text: String, allowed: Bool, pane: String
+    @ObservedObject var asked = Asked.shared
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
@@ -192,18 +194,34 @@ struct HowRow: View {
             Spacer()
             if allowed { Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green).labelStyle(.titleAndIcon) }
             else {
-                Button("Allow…") { askPermission(pane) }
+                Button(permissionButton(pane)) { askPermission(pane) }
             }
         }
     }
 }
 
-// A permission asked for, then its Settings page opened. macOS lists an app under a permission only once the app has
-// asked for it, so opening the page alone left Lookup Word missing from the Screen Recording list.
+// A permission asked for through macOS's own prompt, which explains it and offers to open System Settings; the app
+// opens nothing itself. macOS shows that prompt only the first time an app asks, so a second click (the button now
+// says "Open Settings…") opens the setting's page instead, rather than seem to do nothing. Asking also lists the app
+// under that permission, ready to switch on.
+final class Asked: ObservableObject {
+    static let shared = Asked()
+    @Published var panes: Set<String> = []
+}
+func permissionButton(_ pane: String) -> String { Asked.shared.panes.contains(pane) ? "Open Settings…" : "Allow…" }
 func askPermission(_ pane: String) {
-    if pane == "Privacy_ScreenCapture" { _ = CGRequestScreenCaptureAccess() }
+    guard !Asked.shared.panes.contains(pane) else {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!)
+        return
+    }
+    Asked.shared.panes.insert(pane)
+    if pane == "Privacy_ScreenCapture" {
+        _ = CGRequestScreenCaptureAccess()
+        // the request alone may not list the app on recent macOS; a real attempt to capture does (and shows macOS's
+        // prompt), so ask ScreenCaptureKit for the screens once, keeping nothing
+        Task { _ = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
+    }
     else { _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) }
-    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!)
 }
 
 // one settings window at a time, brought to the front
