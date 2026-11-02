@@ -1,0 +1,33 @@
+{
+  "code": "de",
+  "name": "German",
+  "flag": "🇩🇪",
+  "voice": "de-DE",
+  "monolingual": "German",
+  "bilingual": "German - English",
+  "dictionaryIds": ["com.apple.dictionary.de.DDDSI", "com.apple.dictionary.OxfordGerman"],
+  "recognizer": "de",
+  "ocr": ["de-DE"],
+  "spellChecker": "de",
+  "verb": { "entryPattern": "\\sverb\\b", "prefix": 90 },
+  "verbLabels": ["transitive", "intransitive", "reflexive", "auxiliary", "modal"],
+  "gloss": {
+    "labels": ["A", "B", "neuter", "masculine", "feminine", "plural", "noun", "adjective", "adverb", "transitive",
+               "intransitive", "reflexive", "auxiliary", "modal", "verb", "irregular", "or", "preposition",
+               "conjunction", "pronoun", "interjection"],
+    "variants": [
+      ["^(\\S+) (\\| [^|]+ \\|) [^▸]{0,50}\\bv\\. (\\p{L}+)\\d*\\s*$", "$1 $2 → $3"],
+      ["^(\\p{L}+) \\d(?= [A-Z] )", "$1"],
+      [" ?\\bGen\\. \\S+( Pl\\. [^\\s▸]+)?", ""],
+      [" ?▶ (Fem|Mask)\\. \\S+", ""],
+      [",? mit (sein|haben)\\b", ""],
+      [" ?\\bmit (Adj|Adv|Akk|Dat)\\.( u\\. (Adj|Adv)\\.)?", ""],
+      ["\\s?\\bno (pl|art|indef\\. art)\\.(,\\s?no (pl|art|indef\\. art)\\.)*", ""],
+      ["([›»][^‹«▸]*?\\p{L}[^‹«▸]*?)\\s*[‹«][^›»]*[›»]", "$1 ▸"],
+      ["[‹«][^›»]*[›»]\\s*", ""],
+      ["\\((Mask|Fem|Neutr)\\.\\)/\\s*", ", "],
+      [" ?\\b(Sg|sing|pl|Pl)\\.(?=[\\s,;])", ""],
+      [";(?= )", ","]
+    ]
+  }
+}

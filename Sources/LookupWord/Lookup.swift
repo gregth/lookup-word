@@ -59,13 +59,14 @@ func entry(_ raw: String, hint: String) -> Entry? {
     wanted = w
     guard !w.isEmpty, w.count <= 60 else { return nil }
     let en = define(w, in: english.monolingual)
-    var bil: [String: String] = [:], mono: [String: String] = [:]
+    var bil: [String: String] = [:], mono: [String: String] = [:], bilX: [String: String] = [:]
     for p in others {
         bil[p.code] = define(w, in: p.bilingual)
+        bilX[p.code] = ownEntry(w, bil[p.code], p)
         mono[p.code] = define(w, in: p.monolingual)
     }
     // a word of language X: its own dictionary has it, or X - English has it as an X headword (no pronunciation)
-    func has(_ p: Pack) -> Bool { p.isEnglish ? en != nil : mono[p.code] != nil || (bil[p.code] != nil && !englishSide(bil[p.code])) }
+    func has(_ p: Pack) -> Bool { p.isEnglish ? en != nil : mono[p.code] != nil || bilX[p.code] != nil }
     let lang: Pack
     if let p = scripted {
         guard bil[p.code] != nil || mono[p.code] != nil else { return nil }
@@ -79,7 +80,7 @@ func entry(_ raw: String, hint: String) -> Entry? {
     }
     // its main entry: for a language with its own script, its X - English entry whatever it holds (a Greek letter's
     // entry carries a pronunciation, | κάπα |); for the others, that entry only when it is for the X word
-    let ownBil = lang.script != nil ? bil[lang.code] : bil[lang.code].flatMap { englishSide($0) ? nil : $0 }
+    let ownBil = lang.script != nil ? bil[lang.code] : bilX[lang.code]
     guard let main = lang.isEnglish ? en : ownBil ?? mono[lang.code] ?? bil[lang.code] else { return nil }
     // the headword as the dictionary spells it ("sessions" finds session; "run1" is run)
     var word = matches(main.lowercased(), "^" + NSRegularExpression.escapedPattern(for: w.lowercased()) + #"\b"#)
@@ -94,7 +95,7 @@ func entry(_ raw: String, hint: String) -> Entry? {
         // each other language from its X - English entry for the English word (its verb part, for a verb)
         let verb = isVerb(w, english, en)
         let tr = others.map { p -> (String, String) in
-            guard let t = bil[p.code], englishSide(t) else { return (p.code, "") }
+            guard let t = bil[p.code], englishSide(t, in: p.bilingual) else { return (p.code, "") }
             return (p.code, gloss(verb ? verbPart(t, p) : t, target: p))
         }
         let sections = [(english.monolingual ?? "English", en)] + others.map { p in (title(p.bilingual ?? p.name), bil[p.code]) }
@@ -102,10 +103,10 @@ func entry(_ raw: String, hint: String) -> Entry? {
                      meaning: gloss(en, list: false))
     }
     // another language: English from its X - English entry, then each of the rest through that English
-    let b = bil[lang.code].flatMap { englishSide($0) ? nil : $0 }
+    let b = bilX[lang.code]
     var inEnglish = gloss(b)
     if lang.stripHints == true { inEnglish = withoutHints(inEnglish, lang) }
-    let verb = isVerb(word, lang, bil[lang.code])
+    let verb = isVerb(word, lang, lang.script == nil ? b : bil[lang.code])
     let tr = [("en", inEnglish)] + others.filter { $0.code != lang.code }.map { p in (p.code, via(inEnglish, in: p, verb: verb)) }
     let sections = [(title(lang.bilingual ?? lang.name), b), (lang.monolingual ?? lang.name, mono[lang.code])]
     return Entry(lang: lang.code, word: word, ipa: ipa, tr: tr, sections: sections.compactMap { n, t in t.map { (n, $0) } },
