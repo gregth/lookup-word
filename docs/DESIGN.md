@@ -20,6 +20,7 @@ flowchart TD
   ST["Store.swift: Markdown / JSON store"]
   CA["Card.swift: popover"]
   SE["Settings.swift: settings window, restart"]
+  WE["Welcome.swift: welcome window, permissions"]
   CF["Config.swift: config.json, Paths"]
 
   M --> SC
@@ -28,6 +29,7 @@ flowchart TD
   M --> CA
   M --> ST
   M --> SE
+  M --> WE
   SC --> MA
   SC --> PK
   LU --> DI
@@ -169,10 +171,11 @@ flowchart TD
   which saves nothing until it is fixed. A missing file is written out with the defaults.
 - `SettingsModel.save()` and `setSetting()` rewrite only their own keys and keep every other key. A file that isn't
   JSON: `setSetting()` leaves it alone; `SettingsModel.save()` keeps a copy as `config.broken.json`, then writes.
-- `restart()` asks launchd to restart the job (`launchctl kickstart -k`) when launchd started it (parent pid 1), falling
-  back to a failure exit, which `KeepAlive` with `SuccessfulExit` false also restarts; launchd waits until a job has run
-  10 seconds. Started any other way, it opens a new copy of itself before quitting. Quit exits 0, so launchd leaves it
-  stopped.
+- `restart()` asks launchd to restart the job (`launchctl kickstart -k`) when launchd started it (the plist sets
+  `LOOKUP_AGENT`), then waits to be stopped, ending with a failure exit if it is not, which `KeepAlive` with
+  `SuccessfulExit` false also restarts. Started any other way, it opens a new copy of itself before quitting. Quit
+  exits 0, so launchd leaves it stopped.
 - `install.sh` builds a release binary, assembles and signs the app (its own certificate if there is one, else ad hoc,
   which resets the permissions), writes `~/Library/LaunchAgents/io.github.gregth.lookup-word.plist` with stderr to
-  `~/Library/Logs/Lookup Word/lookup.log`, then `bootout` and `bootstrap` reload it.
+  `~/Library/Logs/Lookup Word/lookup.log`. It stops the running copy (`bootout`) before replacing the app's files and
+  starts it again (`bootstrap`) at the end.

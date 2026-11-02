@@ -80,7 +80,8 @@ back to Greek and lists the dictionary forms a regular ending points to.
 ## Code
 
 - One file per concern in [Sources/LookupWord/](Sources/LookupWord/): settings, packs, dictionaries, screen reading,
-  matching, lookup, card, store, the settings window, and `main.swift` (shortcut, menu, command-line checks).
+  matching, lookup, card, store, the settings window, the welcome window, and `main.swift` (shortcut, menu,
+  command-line checks).
   [docs/DESIGN.md](docs/DESIGN.md) draws how they fit.
 - Comments say why, with the example that motivated a rule (*liep* → "gaan walk").
 - Before a pull request, run [scripts/test-packs.sh](scripts/test-packs.sh) and, if you touched screen reading,

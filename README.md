@@ -92,7 +92,7 @@ cd lookup-word
 
 `update.sh` pulls the latest version and reinstalls it; your settings and words stay as they are. Each new build is a
 new app to macOS unless it is signed with the same certificate, so create the "Lookup Word Signing" certificate once
-(see above) to keep your permissions across updates; without it, the script walks you through granting them again.
+(see above) to keep your permissions across updates; without it, the welcome window asks for them again.
 
 ### Uninstall
 
@@ -208,7 +208,7 @@ app's own text where the app shares it (Chrome and Electron apps do).
 The command lists the available dictionaries and which ones each language still needs.
 
 - `--text WORD [en|nl|el]`: prints the entry it would show, without the screen.
-- `--pointer "SOME TEXT" [size] [bold] [dark]`: tests screen reading on rendered text.
+- `--pointer "SOME TEXT" [size] [bold] [dark] [spread]`: tests screen reading on rendered text.
 - Logs go to `~/Library/Logs/Lookup Word/lookup.log`.
 
 ## How it works
