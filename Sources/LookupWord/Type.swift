@@ -149,8 +149,6 @@ final class TypeBox: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
     }
     func windowDidMove(_ n: Notification) {
         if !placing { UserDefaults.standard.set(NSStringFromPoint(frame.origin), forKey: typeBoxOriginKey) }
-        // its card goes with it (his ask, 2026-11-02): the card hangs from a spot at the box's foot, moved along
-        if cardFromBox, let m = mark { m.setFrameOrigin(NSPoint(x: frame.midX - 2, y: frame.minY - 2)) }
     }
 
     // the text cleared: its card goes too
@@ -206,7 +204,9 @@ func lookUpTyped(_ word: String, below box: NSRect) {
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in closeUnlessPinned() }
     if config.closeAfter > 0, typeBox?.pinned != true { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
     show(word, NSRect(x: box.midX - 1, y: box.minY - 1, width: 2, height: 2), word, mine, highlight: false)
-    cardFromBox = true
+    // its card goes with the box (his asks, 2026-11-02: "should move around with the box", "not very smooth"): the
+    // spot it hangs from is the box's child window, so the window server moves both together, frame by frame
+    if let m = mark, let b = typeBox { b.addChildWindow(m, ordered: .above) }
     // the box keeps the keyboard, so the next word can be typed at once (showing the card would take it)
     DispatchQueue.main.async {
         guard let b = typeBox else { return }

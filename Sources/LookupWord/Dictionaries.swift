@@ -434,7 +434,8 @@ func senses(_ entry: String?, target: Pack? = nil, from: Pack? = nil, noun: Bool
               target?.script.map({ matches(item, #"\p{"# + $0 + "}") }) ?? true,
               target.map({ t in t.isEnglish || t.script != nil || define(item, in: t.monolingual) != nil || define(item, in: english.monolingual) == nil }) ?? true,
               // (English from another language's dictionary: an English word, not a hint left in that language, huis "geslacht")
-              target != nil || from == nil || define(String(item.split(separator: " ")[0]), in: english.monolingual) != nil,
+              target != nil || from == nil || (define(String(item.split(separator: " ")[0]), in: english.monolingual) != nil &&
+                                               define(item, in: from?.monolingual) == nil),  // (nor one the other language has too: waarom "om")
               seen.insert(item.lowercased()).inserted else { return }
         out.append(item)
     }
@@ -471,4 +472,13 @@ func viaSenses(_ english: String, in p: Pack, verb: Bool = false, noun: Bool = f
         kept.forEach { seen.insert($0.lowercased()) }
         return kept.joined(separator: ", ")
     }.filter { !$0.isEmpty }.joined(separator: " · ")
+}
+
+// The entry from each verb section after the first, its head kept: for an English verb whose first one holds no
+// translation (Dutch - English do: "hulpww … 1 <gebruikt om een vraag … te vormen>", then "overg … 1 doen")
+func laterVerbParts(_ t: String, _ p: Pack) -> [String] {
+    guard let labels = p.verbLabels, !labels.isEmpty, let pron = t.range(of: #"\|[^|]*\|"#, options: .regularExpression) else { return [] }
+    let head = String(t[..<pron.upperBound]), rest = String(t[pron.upperBound...])
+    let starts = rest.ranges(of: try! Regex(#"\s[A-D]?("# + labels.joined(separator: "|") + #")(?=\s|\d|\[)"#)).map(\.lowerBound)
+    return starts.dropFirst().map { head + rest[$0...] }
 }

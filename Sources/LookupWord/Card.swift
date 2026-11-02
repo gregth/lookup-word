@@ -121,6 +121,16 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
         out.append(run(words, serif(17, .semibold)))
         out.append(speaker(words, code))
     }
+    // Collapse all (or Expand all), small and muted, at the right above the first dictionary, where its reader is
+    if !e.sections.isEmpty {
+        let font = NSFont.systemFont(ofSize: 11)
+        let all = NSMutableAttributedString(string: "\n" + (collapsedByDefault ? "Expand all" : "Collapse all"),
+                                            attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor])
+        all.addAttributes([.link: URL(string: "lookupword://toggle/all")!, .cursor: NSCursor.pointingHand], range: NSRange(location: 1, length: all.length - 1))
+        let right = NSMutableParagraphStyle(); right.alignment = .right; right.paragraphSpacingBefore = 10
+        all.addAttribute(.paragraphStyle, value: right, range: NSRange(location: 0, length: all.length))
+        out.append(all)
+    }
     for (i, (name, text)) in e.sections.enumerated() {
         let open = collapsedByDefault == toggled.contains(i)
         // the dictionary's name, a click opening or closing it, and a thin rule to the right edge, as Look Up's: a line
@@ -150,16 +160,13 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
     return out
 }
 
-// The card's foot, small and muted: Collapse all (or Expand all), and the word's own language's dictionaries online.
+// The card's foot, small and muted: the word's own language's dictionaries online.
 func footer(_ e: Entry) -> NSAttributedString {
     let font = NSFont.systemFont(ofSize: 11)
     func link(_ title: String, _ url: URL) -> NSAttributedString {
         NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor, .link: url, .cursor: NSCursor.pointingHand])
     }
     let out = NSMutableAttributedString(attributedString: run("\n" + (e.sections.isEmpty ? "" : "\n"), font))
-    if !e.sections.isEmpty {
-        out.append(link(collapsedByDefault ? "Expand all" : "Collapse all", URL(string: "lookupword://toggle/all")!))
-    }
     var allowed = CharacterSet.urlPathAllowed
     allowed.remove(charactersIn: "/?#&=+")
     let links = (pack(e.lang)?.links ?? []).compactMap { l -> (String, URL)? in
@@ -168,7 +175,7 @@ func footer(_ e: Entry) -> NSAttributedString {
         return (l.name, u)
     }
     if !links.isEmpty {
-        out.append(run((e.sections.isEmpty ? "" : "     ") + "Read more: ", font, .tertiaryLabelColor))
+        out.append(run("Read more: ", font, .tertiaryLabelColor))
         for (i, (name, u)) in links.enumerated() {
             if i > 0 { out.append(run(" · ", font, .tertiaryLabelColor)) }
             out.append(link(name, u))
@@ -189,12 +196,18 @@ func message(_ s: String, action: (title: String, url: String)? = nil) -> NSAttr
 }
 
 let voice = AVSpeechSynthesizer()
+// A row of several words ("γιατί, που", "weather · time"): each said on its own, with a short pause between, not one
+// run-on sentence with its commas and the · read out (his report, 2026-11-02: "the speaker sounds abnormal")
 func speak(_ text: String, _ lang: String) {
-    let u = AVSpeechUtterance(string: text)
-    u.voice = AVSpeechSynthesisVoice(language: pack(lang)?.voice ?? "en-GB")
-    u.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
     voice.stopSpeaking(at: .immediate)
-    voice.speak(u)
+    let items = text.components(separatedBy: CharacterSet(charactersIn: ",·;")).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    for item in items.isEmpty ? [text] : items {
+        let u = AVSpeechUtterance(string: item)
+        u.voice = AVSpeechSynthesisVoice(language: pack(lang)?.voice ?? "en-GB")
+        u.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
+        u.postUtteranceDelay = 0.35
+        voice.speak(u)
+    }
 }
 
 final class Card: NSViewController, NSTextViewDelegate {
@@ -291,12 +304,11 @@ final class Card: NSViewController, NSTextViewDelegate {
 }
 
 var pop: NSPopover?, mark: NSWindow?, monitor: Any?, timer: Timer?, shown = 0
-var cardFromBox = false  // the card hangs from the type-a-word box, and moves with it
 let content = Card()
 
 func close() {
-    pop?.close(); mark?.orderOut(nil)
-    pop = nil; mark = nil; cardFromBox = false
+    pop?.close(); mark.map { m in m.parent?.removeChildWindow(m) }; mark?.orderOut(nil)
+    pop = nil; mark = nil
     if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
     timer?.invalidate(); timer = nil
 }
@@ -304,6 +316,7 @@ func close() {
 // The anchor the popover points at: the word's yellow highlight, as Look Up's, or an invisible spot at the pointer
 // (or at r, for a word typed into the box, which has no word on screen to highlight).
 func anchor(_ r: NSRect?, highlight: Bool = true) -> NSView {
+    mark.map { m in m.parent?.removeChildWindow(m) }  // (one the box carried: not shown again with it)
     mark?.orderOut(nil)
     let frame = r?.insetBy(dx: -1, dy: -1) ?? NSRect(origin: NSEvent.mouseLocation, size: NSSize(width: 2, height: 2))
     let w = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
