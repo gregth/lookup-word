@@ -36,24 +36,29 @@ lands in my vocabulary file without my doing anything. What I look up while work
 
 ## What it adds to Apple's Look Up
 
-- **No language to pick.** You never tell it which language a word is in: it works that out from the word and the
-  text around it. Select *huis*, *maison* or *σπίτι* and each card comes up in that word's language, translated into
-  your others.
-- **A box to type a word into.** Press **⌃⌘L** in any app, type a word you heard or half remember, press Return: like
-  Spotlight, for words. It needs no permission at all.
-- **It remembers.** Look Up keeps no history. Lookup Word saves each word, with its meaning and translations, to a
-  Markdown or JSON file you own. Point it at a notes vault (Obsidian, Logseq…) and the list is a note.
-- **The translation, at a glance.** Look Up already lists every enabled dictionary's entry; Lookup Word also puts a
-  one-line translation into each of your languages at the top of the card, so you don't read through the entries to
-  find it. A word with several meanings shows the main ones, with a · between them: French *temps* is "weather · time",
-  Dutch *weer · tijd*. Languages without a dictionary between them (Dutch and Greek, say) translate through English.
-- **Hear every word.** Look Up doesn't pronounce the translations; Lookup Word has a speaker for the word and for each
-  translation, each in its own language's voice.
-- **Inflected Greek words.** Apple's dictionaries find the base form of English and Dutch words (*went* → *go*,
-  *liep* → *lopen*) but not of Greek ones; Lookup Word adds that (*είδε* → *βλέπω*).
-- **The word under the pointer, in any app.** With nothing selected, it reads the word under the pointer off the
-  screen, so it also works where you cannot select text or where Look Up does not reach (Chrome, canvas apps, remote
-  desktops, playing video).
+- **Each word in its own language.** Look Up shows the entry of every dictionary that has the word, whatever its
+  language. Lookup Word works out the word's language from its alphabet, the text it is in and which of your
+  dictionaries have it, and shows that language's entry: select *huis* in a Dutch text, *maison* in a French one or
+  *σπίτι* anywhere, and each card comes up in that word's language, translated into all your others at once.
+- **A box to type a word into.** Look Up takes only a word already on screen. Press **⌃⌘L** (or your own shortcut) in
+  any app, type a word and press Return; a misspelling gets the spell checker's guess (*definately* → *definitely*).
+  The box needs no permission.
+- **It remembers.** Look Up keeps no list of the words you looked up. Lookup Word saves each word your dictionaries
+  have, once and in its dictionary form (*went* as *go*), with its meaning and translations, to a Markdown or JSON
+  file. Make that file a note in your Obsidian vault: Lookup Word only adds to it (a row per word, a section per
+  language, a column for a language you turn on), so your own text in it stays.
+- **The translation, at a glance.** Above the dictionary entries, the card has a row for each of your other languages,
+  with up to three meanings: French *temps* is "weather · time", Dutch *weer · tijd*. A word in a language other than
+  English is translated into your others through its English meaning.
+- **Hear the word and its translations.** Look Up has no speaker. Lookup Word has one for the word and one for each
+  row, each in that language's voice.
+- **Inflected Greek words.** Apple's dictionaries find the base form of English, Dutch and French words (*went* →
+  *go*, *liep* → *lopen*) and point to it for German and Spanish ones, but find almost no Greek ones; Lookup Word
+  finds the base form (*είδε* → *βλέπω*).
+- **Words Look Up can't read.** Look Up needs the app to hand it the text. With nothing selected and Screen Recording
+  allowed, Lookup Word reads the word under the pointer off the screen, so it also works on text in an image in an
+  app without Live Text, or on a remote desktop. macOS's text recognition doesn't read Greek, so this works for your
+  other languages only.
 
 ## Ways to use it
 
