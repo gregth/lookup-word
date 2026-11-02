@@ -2,7 +2,7 @@
 // other languages, a 🔈 for each, saved to your vocabulary.
 //
 // A background app (no Dock icon). Double-tap ⌥ (or the modifier in the settings): it takes the selected text
-// (accessibility, so it needs Accessibility once), or, with screen reading on, reads the word under the pointer off
+// (accessibility, so it needs Accessibility once), or, with nothing selected, reads the word under the pointer off
 // the screen (Screen Recording once), highlights it, and shows a popover pointing at it. Everything comes from the
 // dictionaries enabled in Dictionary.app, offline. A click elsewhere, a key or 30 seconds close it.
 import AppKit
@@ -336,7 +336,7 @@ if let i = args.firstIndex(of: "--render-settings"), i + 1 < args.count {
 // `LookupWord --uninstall [--purge]` does what the menu's Uninstall does, without asking: for scripts and tests
 if args.contains("--uninstall") {
     // only as an installed app, which knows its own identifier: never guess it (it would uninstall another copy)
-    guard Bundle.main.bundleIdentifier != nil, Bundle.main.bundlePath.hasSuffix(".app") else {
+    guard isInstalledApp else {
         print("Run it from the installed app: \"~/Applications/Lookup Word.app/Contents/MacOS/LookupWord\" --uninstall"); exit(1)
     }
     let r = uninstallApp(purge: args.contains("--purge"))

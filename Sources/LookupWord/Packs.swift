@@ -44,7 +44,6 @@ struct Pack: Decodable {
 
     var isEnglish: Bool { code == "en" }
     var hooks: LanguageHooks? { languageHooks[code] }
-    var display: String { name }
     func writes(_ word: String) -> Bool { script.map { matches(word, #"\p{"# + $0 + "}") } ?? false }
 }
 

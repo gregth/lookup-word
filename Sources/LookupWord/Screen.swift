@@ -1,5 +1,5 @@
 // Where the word is: the selection (accessibility), or the word under the pointer read off the screen
-// (ScreenCaptureKit and macOS's text recognition), when screen reading is on.
+// (ScreenCaptureKit and macOS's text recognition), when nothing is selected.
 import AppKit
 import ScreenCaptureKit
 import Vision

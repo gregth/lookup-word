@@ -19,7 +19,7 @@ running() { launchctl print gui/$uid/$LOOKUP_LABEL 2>/dev/null | grep -q 'state 
 pid() { launchctl print gui/$uid/$LOOKUP_LABEL 2>/dev/null | awk '/^\tpid = /{print $3}'; }
 
 mkdir -p $LOOKUP_SUPPORT
-echo '{"menuBar": false, "screenReading": false, "store": {"type": "none"}}' > $LOOKUP_SUPPORT/config.json
+echo '{"menuBar": false, "store": {"type": "none"}}' > $LOOKUP_SUPPORT/config.json
 
 echo "— install"
 "$root/install.sh" </dev/null >$tmp/install.log 2>&1
