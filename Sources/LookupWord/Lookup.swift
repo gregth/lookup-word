@@ -103,7 +103,13 @@ func entry(_ raw: String, hint: String) -> Entry? {
         let tr = others.map { p -> (String, String) in
             guard let t = bil[p.code], englishSide(t, in: p.bilingual) else { return (p.code, "") }
             // (the entries searched by the dictionary's headword: "stopped" is stop's)
-            return (p.code, gloss(verb ? verbEntry(t, word, p, intransitive: intransitive) : mainPart(t, p, firstPart(en)), target: p, from: p, noun: noun))
+            // the English word's other numbered entries there (bank 2 after bank 1), for their first translation
+            let numbered = #"^([\p{L}'-]+) ?\d+(?=[\s,|])"#
+            let others = verb ? [] : records(word, in: p.bilingual).filter {
+                $0 != t && englishSide($0, in: p.bilingual) && group($0, numbered) != nil && group($0, numbered) == group(t, numbered)
+            }
+            return (p.code, senses(verb ? verbEntry(t, word, p, intransitive: intransitive) : mainPart(t, p, firstPart(en)), target: p, from: p, noun: noun,
+                                   others: others).joined(separator: " · "))
         }
         let sections = [(english.monolingual ?? "English", en)] + others.map { p in (title(p.bilingual ?? p.name), bil[p.code]) }
         return Entry(lang: "en", word: word, ipa: ipa, tr: tr, sections: sections.compactMap { n, t in t.map { (n, $0) } },
@@ -111,8 +117,19 @@ func entry(_ raw: String, hint: String) -> Entry? {
     }
     // another language: English from its X - English entry, then each of the rest through that English
     let b = bilX[lang.code]
-    var inEnglish = gloss(b, from: lang)
-    if lang.stripHints == true { inEnglish = withoutHints(inEnglish, lang) }
+    var shown = Set<String>()  // (an item once in the row, after its hints go: huis "house, home · home")
+    // the word's other numbered entries in its own dictionary (Bank 2, the money's, after Bank 1, the bench), but not
+    // one the dictionary marks informal or regional (perro 1, rotten)
+    let numbered = #"^([\p{L}'-]+) ?\d+(?=[\s,|])"#
+    let homographs = b.flatMap { e in group(e, numbered).map { stem in
+        records(stem, in: lang.bilingual).filter { $0 != e && !englishSide($0, in: lang.bilingual) && group($0, numbered) == stem &&
+            !matches(String($0.prefix(70)), #"\((?:informal|colloquial|slang|vulgar|dated|Latin America|Spain|Mexico|Chile|Argentina)"#) }
+    } } ?? []
+    var inEnglish = senses(b, from: lang, others: homographs).enumerated().map { i, sense in
+        let items = (lang.stripHints == true ? withoutHints(sense, lang) : sense).components(separatedBy: ", ").filter { i == 0 || !shown.contains($0.lowercased()) }
+        items.forEach { shown.insert($0.lowercased()) }
+        return items.joined(separator: ", ")
+    }.filter { !$0.isEmpty }.joined(separator: " · ")
     // a word whose entry opens with uses and examples, not a translation ("aller A auxiliary verb … je vais partir
     // I'm leaving"): the pack says it
     if let t = lang.translations?[word.lowercased()] { inEnglish = t }
@@ -120,7 +137,7 @@ func entry(_ raw: String, hint: String) -> Entry? {
     // a noun in its own dictionary (boek: "znw boek"), so the English word's noun part is the one to translate
     let noun = !verb && (b.map(opensAsNoun) ?? false), describing = !verb && (b.map(opensAsDescribing) ?? false)
     let tr = [("en", inEnglish)] + others.filter { $0.code != lang.code }.map { p in
-        (p.code, via(inEnglish, in: p, verb: verb, noun: noun, describing: describing))
+        (p.code, viaSenses(inEnglish, in: p, verb: verb, noun: noun, describing: describing))
     }
     let sections = [(title(lang.bilingual ?? lang.name), b), (lang.monolingual ?? lang.name, mono[lang.code])]
     return Entry(lang: lang.code, word: word, ipa: ipa, tr: tr, sections: sections.compactMap { n, t in t.map { (n, $0) } },

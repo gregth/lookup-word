@@ -1,11 +1,12 @@
 # <img src="docs/icon.png" width="44" height="44" alt="" align="top"> Lookup Word
 
-Look Up for people who live in more than one language. Select a word anywhere on your Mac, or just point at it, and press the ⌥ Option key twice: a card
-shows the word, its pronunciation, its translation into each of your other languages with a 🔈 to hear it, and the
+Look Up for people who live in more than one language. Select a word anywhere on your Mac, or just point at it, and
+press the ⌥ Option key twice; or press ⌃⌘L and type it. You never say which language it is in. A card shows the word, its pronunciation, its translation into each of your other languages with a 🔈 to hear it, and the
 full dictionary entries. Every word you look up is saved to a vocabulary file, so your word list builds itself from
 what you actually read.
 
 Everything runs on your Mac. It uses only the dictionaries in Apple's Dictionary.app: nothing you read is sent anywhere.
+(The card's **Read more** links open a dictionary site in your browser, and only when you click one.)
 
 ![Select or point at a word, press ⌥ twice, and the card shows it in your other languages; the word is saved to your vocabulary](docs/demo.gif)
 
@@ -35,11 +36,17 @@ lands in my vocabulary file without my doing anything. What I look up while work
 
 ## What it adds to Apple's Look Up
 
+- **No language to pick.** You never tell it which language a word is in: it works that out from the word and the
+  text around it. Select *huis*, *maison* or *σπίτι* and each card comes up in that word's language, translated into
+  your others.
+- **A box to type a word into.** Press **⌃⌘L** in any app, type a word you heard or half remember, press Return: like
+  Spotlight, for words. It needs no permission at all.
 - **It remembers.** Look Up keeps no history. Lookup Word saves each word, with its meaning and translations, to a
   Markdown or JSON file you own. Point it at a notes vault (Obsidian, Logseq…) and the list is a note.
 - **The translation, at a glance.** Look Up already lists every enabled dictionary's entry; Lookup Word also puts a
   one-line translation into each of your languages at the top of the card, so you don't read through the entries to
-  find it. Languages without a dictionary between them (Dutch and Greek, say) translate through English.
+  find it. A word with several meanings shows the main ones, with a · between them: French *temps* is "weather · time",
+  Dutch *weer · tijd*. Languages without a dictionary between them (Dutch and Greek, say) translate through English.
 - **Hear every word.** Look Up doesn't pronounce the translations; Lookup Word has a speaker for the word and for each
   translation, each in its own language's voice.
 - **Inflected Greek words.** Apple's dictionaries find the base form of English and Dutch words (*went* → *go*,
@@ -47,6 +54,28 @@ lands in my vocabulary file without my doing anything. What I look up while work
 - **The word under the pointer, in any app.** With nothing selected, it reads the word under the pointer off the
   screen, so it also works where you cannot select text or where Look Up does not reach (Chrome, canvas apps, remote
   desktops, playing video).
+
+## Ways to use it
+
+- **Learning a language where you live.** Read your mail, the news and work documents in the language around you,
+  and look up what stops you without leaving the page. What you looked up this week is your list to study.
+- **School and university.** Students reading set texts in a second language keep one vocabulary file per course
+  (choose it in Settings); a teacher can share a word list made the same way. The words come with their meaning and
+  translations, so the list is ready to revise from.
+- **Flashcards: Anki and others.** The vocabulary file is a plain Markdown table, one section per language. To turn
+  one language's words into Anki cards (the word on the front, its translations on the back):
+
+  ```bash
+  awk -v want=Dutch '/^## /{lang=substr($0,4);next} lang!=want{next} /^\| Word /{n=split($0,head,"|");next} /^\| \*\*/{gsub(/\*\*/,"");split($0,c,"|");back="";for(i=3;i<n;i++){v=c[i];gsub(/^ +| +$/,"",v);h=head[i];gsub(/^ +| +$/,"",h);if(v!="")back=back (back==""?"":"<br>") h ": " v};w=c[2];gsub(/^ +| +$/,"",w);print w "\t" back}' "$HOME/Library/Application Support/Lookup Word/Vocabulary.md" > dutch.txt
+  ```
+
+  Then in Anki: **File → Import**, choose `dutch.txt`, field separator **Tab**, and tick **Allow HTML in fields**.
+  Quizlet's import takes the same text (term and definition separated by a tab). For your own scripts, set the store
+  to JSON instead.
+- **Your notes.** Point the vocabulary file at a note in Obsidian, Logseq or any Markdown notes app, and the list
+  lives with your other notes.
+- **Subtitles, photos and slides.** Point at a word in a video, a screenshot or a shared screen: the card reads it off
+  the screen, so words you can't select count too.
 
 ## Requirements
 
@@ -133,13 +162,19 @@ and the card appears; the third is a box to type into. To close it, click anywhe
 - **The pin** (📌 at the box's right end) keeps the box open: with it on, clicking elsewhere leaves the box where it
   is, ready for the next word, and the card no longer closes by itself after 30 seconds. Escape still closes the
   card, then the box. Click the pin again to turn it off.
-- **Drag the box** anywhere: it opens there next time. To put it back in the middle, choose **Reset the Box's
+- **ⓧ** clears the word, and its card.
+- **Drag the box** anywhere: its card moves with it, and the box opens there next time. To put it back in the middle, choose **Reset the Box's
   Position** in the menu bar menu, or in Settings.
 - This needs no permission at all, so it works even before you allow the other two.
 
 ### On the card
 
 - **Click the speaker** next to a word to hear it, in its own language's voice.
+- **Click a flag** to jump to that language's dictionary entry further down the card.
+- **Click a dictionary's name** (▾) to fold its entry away, or **Collapse all** at the card's foot to fold them all;
+  the cards after keep it that way until you choose **Expand all**.
+- **Read more** at the foot links to that language's dictionaries online: Cambridge, Merriam-Webster, Woorden.org,
+  Τριανταφυλλίδη, Larousse, RAE, Duden, DWDS, WordReference and Wiktionary, two or three per language.
 - **The menu bar icon** opens your vocabulary and the settings, and uninstalls the app.
 
 ## Settings

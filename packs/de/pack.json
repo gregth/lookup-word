@@ -6,6 +6,11 @@
   "monolingual": "German",
   "bilingual": "German - English",
   "dictionaryIds": ["com.apple.dictionary.de.DDDSI", "com.apple.dictionary.OxfordGerman"],
+  "links": [
+    {"name": "Duden", "url": "https://www.duden.de/suchen/dudenonline/{word}"},
+    {"name": "DWDS", "url": "https://www.dwds.de/wb/{word}"},
+    {"name": "WordReference", "url": "https://www.wordreference.com/deen/{word}"}
+  ],
   "recognizer": "de",
   "ocr": ["de-DE"],
   "spellChecker": "de",

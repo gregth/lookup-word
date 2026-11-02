@@ -6,6 +6,11 @@
   "monolingual": "French",
   "bilingual": "French - English",
   "dictionaryIds": ["com.apple.dictionary.fr.Multi", "com.apple.dictionary.OxfordFrench"],
+  "links": [
+    {"name": "Larousse", "url": "https://www.larousse.fr/dictionnaires/francais/{word}"},
+    {"name": "WordReference", "url": "https://www.wordreference.com/fren/{word}"},
+    {"name": "Wiktionary", "url": "https://en.wiktionary.org/wiki/{word}#French"}
+  ],
   "recognizer": "fr",
   "ocr": ["fr-FR"],
   "spellChecker": "fr",

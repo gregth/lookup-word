@@ -63,6 +63,7 @@ let typeBoxOriginKey = "typeBoxOrigin"  // where he last dragged the box; none: 
 final class TypeBox: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
     let field = NSTextField()
     let pin = NSButton()
+    let clear = NSButton()  // ⓧ, while there is text: the word gone, and its card (his ask, 2026-11-02)
     // pinned, a click outside leaves the box (and its card) open; Escape closes the card first, then the box
     var pinned = false { didSet { showPin() } }
     init() {
@@ -83,7 +84,7 @@ final class TypeBox: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         icon.image = NSImage(systemSymbolName: "text.magnifyingglass", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 15, weight: .regular))
         icon.contentTintColor = .secondaryLabelColor
-        field.frame = NSRect(x: 42, y: 11, width: size.width - 84, height: 22)
+        field.frame = NSRect(x: 42, y: 11, width: size.width - 110, height: 22)
         field.placeholderString = "Type a word, then Return"
         field.font = .systemFont(ofSize: 16)
         field.isBordered = false; field.drawsBackground = false; field.focusRingType = .none
@@ -92,11 +93,25 @@ final class TypeBox: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         pin.isBordered = false; pin.bezelStyle = .regularSquare; pin.imagePosition = .imageOnly
         pin.target = self; pin.action = #selector(togglePin)
         showPin()
-        glass.addSubview(icon); glass.addSubview(field); glass.addSubview(pin)
+        clear.frame = NSRect(x: size.width - 64, y: 10, width: 24, height: 24)
+        clear.isBordered = false; clear.bezelStyle = .regularSquare; clear.imagePosition = .imageOnly
+        clear.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Clear")?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
+        clear.contentTintColor = .tertiaryLabelColor
+        clear.toolTip = "Clear"
+        clear.target = self; clear.action = #selector(clearWord)
+        clear.isHidden = true
+        glass.addSubview(icon); glass.addSubview(field); glass.addSubview(clear); glass.addSubview(pin)
         contentView = glass
         delegate = self
     }
     @objc func togglePin() { pinned.toggle() }
+    @objc func clearWord() {
+        field.stringValue = ""
+        clear.isHidden = true
+        if pop != nil { closeCard() }
+        makeFirstResponder(field)
+    }
     func showPin() {
         pin.image = NSImage(systemSymbolName: pinned ? "pin.fill" : "pin", accessibilityDescription: pinned ? "Unpin" : "Pin")?
             .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
@@ -134,10 +149,13 @@ final class TypeBox: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
     }
     func windowDidMove(_ n: Notification) {
         if !placing { UserDefaults.standard.set(NSStringFromPoint(frame.origin), forKey: typeBoxOriginKey) }
+        // its card goes with it (his ask, 2026-11-02): the card hangs from a spot at the box's foot, moved along
+        if cardFromBox, let m = mark { m.setFrameOrigin(NSPoint(x: frame.midX - 2, y: frame.minY - 2)) }
     }
 
     // the text cleared: its card goes too
     func controlTextDidChange(_ n: Notification) {
+        clear.isHidden = field.stringValue.isEmpty
         if field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty, pop != nil { closeCard() }
     }
 
@@ -163,6 +181,7 @@ func showTypeBox() {
     NSApp.activate(ignoringOtherApps: true)
     typeBox?.makeKeyAndOrderFront(nil)
     typeBox?.field.selectText(nil)  // the last word, selected: type over it or press Return again
+    typeBox?.clear.isHidden = typeBox?.field.stringValue.isEmpty ?? true
 }
 func closeTypeBox() { typeBox?.orderOut(nil); close() }
 func resetTypeBoxPosition() {
@@ -187,6 +206,7 @@ func lookUpTyped(_ word: String, below box: NSRect) {
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in closeUnlessPinned() }
     if config.closeAfter > 0, typeBox?.pinned != true { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
     show(word, NSRect(x: box.midX - 1, y: box.minY - 1, width: 2, height: 2), word, mine, highlight: false)
+    cardFromBox = true
     // the box keeps the keyboard, so the next word can be typed at once (showing the card would take it)
     DispatchQueue.main.async {
         guard let b = typeBox else { return }

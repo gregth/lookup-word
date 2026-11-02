@@ -5,6 +5,11 @@
   "voice": "en-GB",
   "monolingual": "English",
   "dictionaryIds": ["com.apple.dictionary.ODE"],
+  "links": [
+    {"name": "Cambridge", "url": "https://dictionary.cambridge.org/dictionary/english/{word}"},
+    {"name": "Merriam-Webster", "url": "https://www.merriam-webster.com/dictionary/{word}"},
+    {"name": "Wiktionary", "url": "https://en.wiktionary.org/wiki/{word}"}
+  ],
   "recognizer": "en",
   "ocr": ["en-US"],
   "spellChecker": "en",

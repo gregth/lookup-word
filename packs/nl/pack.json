@@ -6,6 +6,10 @@
   "monolingual": "Dutch",
   "bilingual": "Dutch - English",
   "dictionaryIds": ["com.apple.dictionary.nl.Prisma", "com.apple.dictionary.nl-en.oup"],
+  "links": [
+    {"name": "Woorden.org", "url": "https://www.woorden.org/woord/{word}"},
+    {"name": "Wiktionary", "url": "https://en.wiktionary.org/wiki/{word}#Dutch"}
+  ],
   "recognizer": "nl",
   "ocr": ["nl-NL"],
   "spellChecker": "nl",

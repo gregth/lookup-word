@@ -6,6 +6,11 @@
   "monolingual": "Spanish",
   "bilingual": "Spanish - English",
   "dictionaryIds": ["com.apple.dictionary.es.DGLEV", "com.apple.dictionary.OxfordSpanish"],
+  "links": [
+    {"name": "RAE", "url": "https://dle.rae.es/{word}"},
+    {"name": "WordReference", "url": "https://www.wordreference.com/esen/{word}"},
+    {"name": "Wiktionary", "url": "https://en.wiktionary.org/wiki/{word}#Spanish"}
+  ],
   "recognizer": "es",
   "ocr": ["es-ES"],
   "spellChecker": "es",

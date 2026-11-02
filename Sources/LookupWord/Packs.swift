@@ -18,6 +18,11 @@ struct GlossRules: Decodable {
     var variants: [[String]]?  // [regex, replacement] applied first, e.g. a spelling variant after the headword
 }
 
+struct PackLink: Decodable {
+    var name: String  // as the card shows it: "Cambridge"
+    var url: String  // with {word} for the word: "https://dictionary.cambridge.org/dictionary/english/{word}"
+}
+
 struct Pack: Decodable {
     var code: String  // ISO 639-1
     var name: String  // in English: "Dutch"
@@ -38,13 +43,14 @@ struct Pack: Decodable {
     var stripHints: Bool?  // its X - English translations may start with X words as hints ("gaan walk"): drop them
     var lemmas: String?  // form ⇥ lemma, .tsv or .tsv.xz, for languages whose dictionaries do not lemmatise
     var translations: [String: String]?  // the English for the few words whose entries open with examples (aller)
+    var links: [PackLink]?  // online dictionaries for reading more, at the card's foot
     var gloss: GlossRules?
     var dir = URL(fileURLWithPath: "/")
 
     enum CodingKeys: String, CodingKey {
         case code, name, flag, voice, monolingual, bilingual, dictionaryIds, script, recognizer, ocr, spellChecker, verb, verbLabels,
              intransitiveLabels, partLabels,
-             stripHints, lemmas, translations, gloss
+             stripHints, lemmas, translations, links, gloss
     }
 
     var isEnglish: Bool { code == "en" }

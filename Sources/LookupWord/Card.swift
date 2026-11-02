@@ -94,22 +94,43 @@ func formatted(_ text: String) -> NSAttributedString {
 
 let cardWidth: CGFloat = 460
 
+// The card on screen, to draw again when a section opens or closes; the sections opened or closed on it by hand; and
+// whether they start closed, as the card's Collapse all left them for the next cards.
+var shownCard: (entry: Entry, status: String)?
+var toggled = Set<Int>()
+var sectionStart: [Int: Int] = [:]  // each section's title, by its character position, for a flag's click
+let collapsedKey = "sectionsCollapsed"
+var collapsedByDefault: Bool { UserDefaults.standard.bool(forKey: collapsedKey) }
+
 func card(_ e: Entry, status: String) -> NSAttributedString {
+    if shownCard.map({ $0.entry.word != e.word || $0.entry.lang != e.lang }) ?? true { toggled = [] }
+    shownCard = (e, status)
+    sectionStart = [:]
     let out = NSMutableAttributedString()
     out.append(run(e.word, serif(26, .bold)))
     if !e.ipa.isEmpty { out.append(run("  | \(e.ipa) |", serif(16, .regular), .secondaryLabelColor)) }
     out.append(speaker(e.word, e.lang))
     for (code, words) in e.tr where !words.isEmpty {
-        out.append(run("\n" + (pack(code)?.flag ?? code.uppercased()) + "  ", .systemFont(ofSize: 15)))
+        let flag = NSMutableAttributedString(attributedString: run("\n" + (pack(code)?.flag ?? code.uppercased()) + "  ", .systemFont(ofSize: 15)))
+        // the flag leads to its language's dictionary below ("Greek – English"), when the card has one
+        if let name = pack(code)?.name, let i = e.sections.firstIndex(where: { $0.0.contains(name) }) {
+            flag.addAttributes([.link: URL(string: "lookupword://section/\(i)")!, .cursor: NSCursor.pointingHand],
+                               range: NSRange(location: 1, length: flag.length - 3))
+        }
+        out.append(flag)
         out.append(run(words, serif(17, .semibold)))
         out.append(speaker(words, code))
     }
-    for (name, text) in e.sections {
-        // the dictionary's name and a thin rule to the right edge, as Look Up's: a line drawn as an attachment as wide
-        // as what is left of the row
+    for (i, (name, text)) in e.sections.enumerated() {
+        let open = collapsedByDefault == toggled.contains(i)
+        // the dictionary's name, a click opening or closing it, and a thin rule to the right edge, as Look Up's: a line
+        // drawn as an attachment as wide as what is left of the row
         let font = NSFont.systemFont(ofSize: 20, weight: .light)
-        let title = NSMutableAttributedString(string: "\n" + name + "  ", attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor])
-        let room = cardWidth - 2 * 24 - 16 - (name + "  " as NSString).size(withAttributes: [.font: font]).width  // the card's margins
+        let label = (open ? "▾ " : "▸ ") + name + "  "
+        let title = NSMutableAttributedString(string: "\n" + label, attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor])
+        title.addAttributes([.link: URL(string: "lookupword://toggle/\(i)")!, .cursor: NSCursor.pointingHand],
+                            range: NSRange(location: 1, length: (label as NSString).length - 2))
+        let room = cardWidth - 2 * 24 - 16 - (label as NSString).size(withAttributes: [.font: font]).width  // the card's margins
         if room > 20 {
             let line = NSImage(size: NSSize(width: room, height: 1), flipped: false) { r in NSColor.separatorColor.setFill(); r.fill(); return true }
             let rule = NSTextAttachment()
@@ -117,13 +138,42 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
             rule.bounds = NSRect(x: 0, y: font.xHeight / 2, width: room, height: 1)
             title.append(NSAttributedString(attachment: rule))
         }
-        title.append(NSAttributedString(string: "\n"))
-        let gap = NSMutableParagraphStyle(); gap.paragraphSpacingBefore = 16; gap.paragraphSpacing = 4  // not a blank line
+        if open { title.append(NSAttributedString(string: "\n")) }  // a closed one: the next title right below
+        let gap = NSMutableParagraphStyle(); gap.paragraphSpacingBefore = open ? 16 : 8; gap.paragraphSpacing = 4  // not a blank line
         title.addAttribute(.paragraphStyle, value: gap, range: NSRange(location: 0, length: title.length))
+        sectionStart[i] = out.length + 1
         out.append(title)
-        out.append(formatted(text))
+        if open { out.append(formatted(text)) }
     }
     if !status.isEmpty { out.append(run("\n\n" + status, .systemFont(ofSize: 11), .tertiaryLabelColor)) }
+    out.append(footer(e))
+    return out
+}
+
+// The card's foot, small and muted: Collapse all (or Expand all), and the word's own language's dictionaries online.
+func footer(_ e: Entry) -> NSAttributedString {
+    let font = NSFont.systemFont(ofSize: 11)
+    func link(_ title: String, _ url: URL) -> NSAttributedString {
+        NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor, .link: url, .cursor: NSCursor.pointingHand])
+    }
+    let out = NSMutableAttributedString(attributedString: run("\n" + (e.sections.isEmpty ? "" : "\n"), font))
+    if !e.sections.isEmpty {
+        out.append(link(collapsedByDefault ? "Expand all" : "Collapse all", URL(string: "lookupword://toggle/all")!))
+    }
+    var allowed = CharacterSet.urlPathAllowed
+    allowed.remove(charactersIn: "/?#&=+")
+    let links = (pack(e.lang)?.links ?? []).compactMap { l -> (String, URL)? in
+        guard let w = e.word.addingPercentEncoding(withAllowedCharacters: allowed),
+              let u = URL(string: l.url.replacingOccurrences(of: "{word}", with: w)) else { return nil }
+        return (l.name, u)
+    }
+    if !links.isEmpty {
+        out.append(run((e.sections.isEmpty ? "" : "     ") + "Read more: ", font, .tertiaryLabelColor))
+        for (i, (name, u)) in links.enumerated() {
+            if i > 0 { out.append(run(" · ", font, .tertiaryLabelColor)) }
+            out.append(link(name, u))
+        }
+    }
     return out
 }
 
@@ -180,15 +230,55 @@ final class Card: NSViewController, NSTextViewDelegate {
         preferredContentSize = NSSize(width: cardWidth, height: min(full, 520))
         top()
     }
+    // the card drawn again in place, at the same scroll, after a section opened or closed
+    func redraw() {
+        guard let c = shownCard else { return }
+        let at = scroll.contentView.bounds.origin
+        set(card(c.entry, status: c.status))
+        pop?.contentSize = preferredContentSize
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: min(at.y, max(0, text.frame.height - scroll.contentView.bounds.height))))
+        scroll.reflectScrolledClipView(scroll.contentView)
+    }
+    func scrollToSection(_ i: Int) {
+        guard let at = sectionStart[i], let lm = text.layoutManager, let tc = text.textContainer else { return }
+        let glyphs = lm.glyphRange(forCharacterRange: NSRange(location: at, length: 1), actualCharacterRange: nil)
+        let y = lm.boundingRect(forGlyphRange: glyphs, in: tc).minY + text.textContainerInset.height - 12
+        let most = max(0, text.frame.height - scroll.contentView.bounds.height)
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: min(max(0, y), most)))
+        scroll.reflectScrolledClipView(scroll.contentView)
+    }
     func top() {
         scroll.contentView.scroll(to: .zero)
         scroll.reflectScrolledClipView(scroll.contentView)
     }
+    // the guard against the card opening scrolled above its top, blank there and cut at the bottom (his report,
+    // 2026-11-02, a typed word's card; not reproduced: whatever scrolls it does so after top())
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        if scroll.contentView.bounds.origin.y < 0 { top() }
+    }
     func textView(_ v: NSTextView, clickedOnLink link: Any, at i: Int) -> Bool {
+        if let u = link as? URL, u.scheme == "https" {  // Read more: in the browser, the card closed
+            NSWorkspace.shared.open(u)
+            if typeBox?.pinned != true { close() }
+            return true
+        }
         if let u = link as? URL, u.scheme == "lookupword" {
             switch (u.host ?? "") + u.path {
             case "open/accessibility": askPermission("Privacy_Accessibility")
             case "open/screen-recording": askPermission("Privacy_ScreenCapture")
+            case "toggle/all":
+                UserDefaults.standard.set(!collapsedByDefault, forKey: collapsedKey)
+                toggled = []
+                redraw()
+            case let t where t.hasPrefix("section/"):
+                guard let i = Int(t.dropFirst("section/".count)) else { return false }
+                if collapsedByDefault != toggled.contains(i) { toggled.formSymmetricDifference([i]); redraw() }  // opened first
+                scrollToSection(i)
+            case let t where t.hasPrefix("toggle/"):
+                guard let i = Int(t.dropFirst("toggle/".count)) else { return false }
+                if toggled.contains(i) { toggled.remove(i) } else { toggled.insert(i) }
+                redraw()
             default: return false
             }
             return true
@@ -201,11 +291,12 @@ final class Card: NSViewController, NSTextViewDelegate {
 }
 
 var pop: NSPopover?, mark: NSWindow?, monitor: Any?, timer: Timer?, shown = 0
+var cardFromBox = false  // the card hangs from the type-a-word box, and moves with it
 let content = Card()
 
 func close() {
     pop?.close(); mark?.orderOut(nil)
-    pop = nil; mark = nil
+    pop = nil; mark = nil; cardFromBox = false
     if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
     timer?.invalidate(); timer = nil
 }

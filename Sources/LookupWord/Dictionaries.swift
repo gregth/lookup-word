@@ -414,3 +414,61 @@ func ownEntry(_ word: String, _ t: String?, _ p: Pack) -> String? {
     }
     return own
 }
+
+// The word's first senses for the card's top row, not the first alone, as a dictionary may put the main one second
+// (his report, 2026-11-02: "some words might have multiple translations and the top row shows only one"): sense 1 as
+// gloss gives it, then the first item of senses 2 and 3 of the same part of speech, and of the word's other numbered
+// entries (`others`: Oxford's bank 1, the river's, and bank 2, the money's). A later item counts only when it is a
+// translation, not an example or the word's forms: three words at most, no digits, not the word itself, and in the
+// target's script when it has one.
+func senses(_ entry: String?, target: Pack? = nil, from: Pack? = nil, noun: Bool = false, others: [String] = []) -> [String] {
+    let first = gloss(entry, target: target, from: from, noun: noun)
+    guard let e = entry, !first.isEmpty else { return first.isEmpty ? [] : [first] }
+    var out = [first]
+    var seen = Set(first.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() })
+    let word = (wanted ?? "").lowercased()
+    func add(_ g: String) {
+        guard out.count < 3, let item = g.split(separator: ",").first.map({ $0.trimmingCharacters(in: .whitespaces) }), !item.isEmpty,
+              item.split(separator: " ").count <= 3, !item.contains(where: \.isNumber),
+              word.isEmpty || !item.lowercased().split(separator: " ").contains(Substring(word)),
+              target?.script.map({ matches(item, #"\p{"# + $0 + "}") }) ?? true,
+              target.map({ t in t.isEnglish || t.script != nil || define(item, in: t.monolingual) != nil || define(item, in: english.monolingual) == nil }) ?? true,
+              // (English from another language's dictionary: an English word, not a hint left in that language, huis "geslacht")
+              target != nil || from == nil || define(String(item.split(separator: " ")[0]), in: english.monolingual) != nil,
+              seen.insert(item.lowercased()).inserted else { return }
+        out.append(item)
+    }
+    let number = { (n: Int) in #"(?<=[\s.~;])"# + String(n) + #"(?=\s?[\p{L}\[(<])"# }
+    // (a new part of speech ends the senses: "A noun 1 … B transitive verb 1 …", Greek's "Bvt 1…")
+    let part = #"\s[B-D](?:\s|(?=vt|vi|v\b|n\b|adj|adv))"#
+    if let one = e.range(of: number(1), options: .regularExpression), e.distance(from: e.startIndex, to: one.lowerBound) < 200 {
+        let head = String(e[..<one.lowerBound])
+        var after = one.upperBound
+        for n in 2...3 {
+            guard let r = e[after...].range(of: number(n), options: .regularExpression),
+                  !matches(String(e[after..<r.lowerBound]), part) else { break }
+            after = r.upperBound
+            add(gloss(head + "1 " + e[r.upperBound...].drop { $0.isWhitespace }, target: target, from: from, noun: noun))
+        }
+    }
+    // (another part of speech's entry adds nothing to a noun's row: bank 3, the verb, peraltar)
+    let verbish = #"^[^▸]{0,80}?\b(?:verb|vt|vi|ww|overg|onoverg)\b"#
+    for o in others where matches(e, verbish) == matches(o, verbish) { add(gloss(o, target: target, from: from, noun: noun)) }
+    return out
+}
+
+// The English senses (" · " between them) into another language, one by one, each sense's first words through via
+func viaSenses(_ english: String, in p: Pack, verb: Bool = false, noun: Bool = false, describing: Bool = false) -> String {
+    var seen = Set<String>()
+    // (after the first, its first item alone, when short and new to the row: not an example caught as a translation,
+    // "she rushed after him corrió tras él", nor σπίτι again, nor what is left of "banco (de trabajo)" once banco is)
+    return english.components(separatedBy: " · ").enumerated().map { i, sense in
+        let items = via(sense, in: p, verb: verb, noun: noun, describing: describing).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let kept = i == 0 ? items : Array(items.prefix(1).filter { item in
+            item.split(separator: " ").count <= 3 && !item.contains(where: { $0.isNumber || $0 == "." }) && !seen.contains(item.lowercased()) &&
+            (p.script.map { matches(item, #"^[^\p{L}]*\p{"# + $0 + "}") } ?? (define(item, in: p.monolingual) != nil || define(item, in: pack("en")?.monolingual) == nil))
+        })
+        kept.forEach { seen.insert($0.lowercased()) }
+        return kept.joined(separator: ", ")
+    }.filter { !$0.isEmpty }.joined(separator: " · ")
+}
