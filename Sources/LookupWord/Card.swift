@@ -171,7 +171,8 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
         let font = NSFont.systemFont(ofSize: 11)
         let all = NSMutableAttributedString(string: "\n" + (collapsedByDefault ? "Expand all" : "Collapse all"),
                                             attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor])
-        all.addAttributes([.link: URL(string: "lookupword://toggle/all")!, .cursor: NSCursor.pointingHand], range: NSRange(location: 1, length: all.length - 1))
+        all.addAttributes([.link: URL(string: "lookupword://toggle/all")!, .cursor: NSCursor.pointingHand,
+                           .toolTip: "The next cards open the same way, until you click it again"], range: NSRange(location: 1, length: all.length - 1))
         let right = NSMutableParagraphStyle(); right.alignment = .right; right.paragraphSpacingBefore = 10
         all.addAttribute(.paragraphStyle, value: right, range: NSRange(location: 0, length: all.length))
         out.append(all)

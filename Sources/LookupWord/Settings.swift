@@ -15,13 +15,12 @@ final class SettingsModel: ObservableObject {
     @Published var storeType = ""
     @Published var storePath = ""
     @Published var saveDate = false
-    @Published var collapsed = false  // the card's dictionaries start closed: its Collapse all, kept in UserDefaults
     @Published var broken = false  // config.json is not JSON: Save would replace it with what the window shows
     @Published var enabling: Set<String> = []  // languages whose dictionaries are downloading
     let available: [Language]
-    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var typeKey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool; var collapsed: Bool }
-    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, typeKey: typeKey, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate, collapsed: collapsed) }
-    var saved = Snapshot(languages: [], hotkey: "", typeKey: "", menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false, collapsed: false)
+    struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var typeKey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool }
+    var snapshot: Snapshot { Snapshot(languages: languages, hotkey: hotkey, typeKey: typeKey, menuBar: menuBar, closeAfter: closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate) }
+    var saved = Snapshot(languages: [], hotkey: "", typeKey: "", menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false)
 
     init() {
         available = availablePacks.compactMap(loadPack).map { p in
@@ -44,7 +43,6 @@ final class SettingsModel: ObservableObject {
         storeType = file.store.type
         storePath = file.store.path ?? ""
         saveDate = file.store.saveDate
-        collapsed = collapsedByDefault
         saved = snapshot
     }
 
@@ -55,13 +53,13 @@ final class SettingsModel: ObservableObject {
     var defaults: Snapshot {
         let d = Config()
         return Snapshot(languages: Set(d.languages + ["en"]), hotkey: d.hotkey, typeKey: Shortcut.from(d.typeShortcut).id, menuBar: d.menuBar,
-                        closeAfter: d.closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate, collapsed: false)
+                        closeAfter: d.closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate)
     }
     var isDefault: Bool { snapshot == defaults }
     func restoreDefaults() {
         let d = defaults
         languages = d.languages; hotkey = d.hotkey; typeKey = d.typeKey; menuBar = d.menuBar
-        closeAfter = d.closeAfter; collapsed = d.collapsed
+        closeAfter = d.closeAfter
     }
     var defaultPath: String { Paths.support.appendingPathComponent(storeType == "json" ? "vocabulary.json" : "Vocabulary.md").path }
 
@@ -85,7 +83,6 @@ final class SettingsModel: ObservableObject {
         store["path"] = path.isEmpty ? nil : path
         store["saveDate"] = saveDate
         dict["store"] = store
-        if collapsed { UserDefaults.standard.set(true, forKey: collapsedKey) } else { UserDefaults.standard.removeObject(forKey: collapsedKey) }
         if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) {
             try? (data + Data("\n".utf8)).write(to: Paths.config, options: .atomic)
         }
@@ -195,9 +192,6 @@ struct SettingsView: View {
                         Stepper("", value: $model.closeAfter, in: 0...600, step: 5).labelsHidden()
                         Text(model.closeAfter == 0 ? "never" : "seconds").foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
                     }
-                    // the card's Collapse all / Expand all sets it too
-                    Toggle("Show the card's dictionaries expanded", isOn: Binding(get: { !model.collapsed }, set: { model.collapsed = !$0 }))
-                        .help("Off: each dictionary on the card starts closed, a click on its name opens it. The card's Collapse all and Expand all change this too.")
                 } header: { Text("How to look up a word") }
 
                 Section {

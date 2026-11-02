@@ -192,7 +192,7 @@ VoiceOver announces); it also closes by itself after 30 seconds.
 - **Click the speaker** next to a word to hear it, in its own language's voice.
 - **Click a language's code** (NL, EL…) to jump to that language's dictionary entry further down the card.
 - **Click a dictionary's name** (▾) to fold its entry away, or **Collapse all**, at the right above the entries, to
-  fold them all; the cards after keep it that way until you choose **Expand all**.
+  fold them all; the next cards open folded too, until you choose **Expand all**.
 - **A language whose dictionaries are missing** gets a muted line instead of its translation, with a link to Settings,
   where **Enable** turns them on.
 - **Read more** at the foot links to that language's dictionaries online: Cambridge, Merriam-Webster, Woorden.org,
@@ -207,9 +207,8 @@ Menu bar icon → **Settings…**:
 
 **Save and Restart** applies the changes. **Restore Defaults** puts a new user's settings in the window (applied by
 Save and Restart too); where and how words are saved stays as it is. The settings are stored in
-`~/Library/Application Support/Lookup Word/config.json`, written with the defaults on first launch, except **Show the
-card's dictionaries expanded**, which macOS keeps with the card's Collapse all. After editing that file by hand, choose
-**Restart Lookup Word** in the menu. Every key is optional; a key it doesn't know (a misspelling) is ignored, with a
+`~/Library/Application Support/Lookup Word/config.json`, written with the defaults on first launch. After editing that
+file by hand, choose **Restart Lookup Word** in the menu. Every key is optional; a key it doesn't know (a misspelling) is ignored, with a
 warning on the card. A file that isn't valid JSON leaves the defaults in force and saves no words until you fix it: the
 Settings window says so and won't save over it.
 

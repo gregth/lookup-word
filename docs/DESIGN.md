@@ -198,8 +198,8 @@ flowchart TD
   JSON: `setSetting()` leaves it alone; the Settings window says so (`broken`) and keeps Save and Restart off until
   Check Again reads valid JSON. (`save()` would still keep a copy as `config.broken.json` before writing.)
 - **Restore Defaults** puts `Config()`'s values in the window only, keeping the store's type, path and date column.
-  The card's expanded or collapsed dictionaries are not in `config.json`: they live in `UserDefaults`
-  (`sectionsCollapsed`), which the card's Collapse all also sets.
+  The card's expanded or collapsed dictionaries are not a setting: the card's Collapse all and Expand all keep
+  the last choice in `UserDefaults` (`sectionsCollapsed`) for the next cards.
 - `restart()` asks launchd to restart the job (`launchctl kickstart -k`) when launchd started it (the plist sets
   `LOOKUP_AGENT`), then waits to be stopped, ending with a failure exit if it is not, which `KeepAlive` with
   `SuccessfulExit` false also restarts. Started any other way, it opens a new copy of itself before quitting. Quit
