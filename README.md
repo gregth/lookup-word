@@ -155,6 +155,8 @@ and the card appears; the third is a box to type into. To close it, click anywhe
 
 ### 3. Or type it
 
+![Pressing ⌃⌘L, typing "liep" in the box that opens and pressing Return, and the card for "lopen" below the box](docs/mode-type.gif)
+
 - Press **⌃⌘L** (Control, Command and L together; in Settings you can record any other) in any app, or choose **Look Up a Word…** in the menu bar menu.
   A box opens near the top of the screen: type the word, in any of your languages, and press Return. Its card
   shows below the box, and the box keeps the keyboard, so you can type the next word straight away.

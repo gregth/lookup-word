@@ -1,4 +1,4 @@
-// Draws docs/demo.gif: a sentence in each language, the pointer moving to a word, a double-tap of ⌥, and the card
+// Draws docs/demo.gif (and the three mode GIFs: selecting, pointing, the type-a-word box): a sentence in each language, the pointer moving to a word, a double-tap of ⌥, and the card
 // Lookup Word shows for it, with the four steps numbered along the bottom. The cards are the app's own, from `LookupWord --render WORD LANG docs/card-….png`; the
 // window, pointer and steps around them are drawn here.
 //
@@ -209,6 +209,92 @@ do {
     scr += tap(at: on, selected: 0)
     scr.append((frame(sc, pointerAt: on, step: 0, card: card, wordRect: w), 3))
     gif("mode-screen.gif", scr, crop: crop)
+}
+
+// the type-a-word box: ⌃⌘L, the box near the top (as Type.swift lays it out: 400 × 44, the magnifier, the field, ⓧ and
+// the pin), the word typed letter by letter, Return, and its card hanging below the box
+do {
+    let sc = Scene(language: "Notes", sentence: "Words to look up later: liep, outcome, είδε.", word: "liep", card: "card-dutch.png")
+    let card = NSImage(contentsOf: docs.appendingPathComponent(sc.card))!
+    card.size = NSSize(width: CGFloat(card.representations[0].pixelsWide) / 2, height: CGFloat(card.representations[0].pixelsHigh) / 2)
+    let box = NSRect(x: (W - 400) / 2, y: 70, width: 400, height: 44)
+    func symbol(_ name: String, _ size: CGFloat, _ color: NSColor, in r: NSRect) {
+        guard let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: size, weight: .regular).applying(.init(paletteColors: [color]))) else { return }
+        img.draw(in: NSRect(x: r.midX - img.size.width / 2, y: r.midY - img.size.height / 2, width: img.size.width, height: img.size.height),
+                 from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+    }
+    // the keys pressed, as chips in the window's lower right, lit while down
+    func keys(_ labels: [String], lit: Bool) {
+        var x = window.maxX - 30
+        for label in labels.reversed() {
+            let t = NSAttributedString(string: label, attributes: [.font: NSFont.systemFont(ofSize: 22, weight: .medium),
+                                                                   .foregroundColor: lit ? NSColor(white: 0.1, alpha: 1) : NSColor(white: 0.95, alpha: 1)])
+            let r = NSRect(x: x - max(56, t.size().width + 28), y: window.maxY - 82, width: max(56, t.size().width + 28), height: 52)
+            (lit ? NSColor(red: 0.5, green: 0.88, blue: 0.69, alpha: 1) : NSColor(white: 0.32, alpha: 1)).setFill()
+            NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10).fill()
+            t.draw(at: NSPoint(x: r.midX - t.size().width / 2, y: r.midY - t.size().height / 2))
+            x = r.minX - 10
+        }
+    }
+    func typeFrame(_ text: String?, keysDown: [String] = [], lit: Bool = false, showCard: Bool = false) -> CGImage {
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(W), pixelsHigh: Int(H), bitsPerSample: 8, samplesPerPixel: 4,
+                                   hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        let ctx = NSGraphicsContext(bitmapImageRep: rep)!
+        ctx.cgContext.translateBy(x: 0, y: H); ctx.cgContext.scaleBy(x: 1, y: -1)
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx.cgContext, flipped: true)
+        background.setFill(); NSRect(x: 0, y: 0, width: W, height: H).fill()
+        windowColor.setFill(); NSBezierPath(roundedRect: window, xRadius: 12, yRadius: 12).fill()
+        for (i, c) in [NSColor.systemRed, .systemYellow, .systemGreen].enumerated() {
+            c.setFill(); NSBezierPath(ovalIn: NSRect(x: window.minX + 18 + CGFloat(i) * 20, y: window.minY + 14, width: 12, height: 12)).fill()
+        }
+        NSAttributedString(string: sc.language, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: NSColor(white: 1, alpha: 0.5)])
+            .draw(at: NSPoint(x: window.midX - 20, y: window.minY + 11))
+        NSAttributedString(string: sc.sentence, attributes: [.font: textFont, .foregroundColor: NSColor(white: 0.92, alpha: 1)]).draw(at: textOrigin)
+        if let text {
+            NSGraphicsContext.current?.saveGraphicsState()
+            let shadow = NSShadow(); shadow.shadowBlurRadius = 14; shadow.shadowOffset = NSSize(width: 0, height: -4)
+            shadow.shadowColor = NSColor(white: 0, alpha: 0.35); shadow.set()
+            NSColor(white: 0.2, alpha: 1).setFill(); NSBezierPath(roundedRect: box, xRadius: 10, yRadius: 10).fill()
+            NSGraphicsContext.current?.restoreGraphicsState()
+            symbol("text.magnifyingglass", 15, NSColor(white: 1, alpha: 0.55), in: NSRect(x: box.minX + 14, y: box.minY + 12, width: 20, height: 20))
+            let font = NSFont.systemFont(ofSize: 16)
+            let shown = NSAttributedString(string: text.isEmpty ? "Type a word, then Return" : text,
+                                           attributes: [.font: font, .foregroundColor: NSColor(white: 1, alpha: text.isEmpty ? 0.3 : 0.92)])
+            shown.draw(at: NSPoint(x: box.minX + 44, y: box.midY - shown.size().height / 2))
+            let caretX = box.minX + 44 + (text.isEmpty ? 0 : shown.size().width) + 1
+            NSColor.controlAccentColor.setFill(); NSRect(x: caretX, y: box.midY - 10, width: 2, height: 20).fill()
+            if !text.isEmpty { symbol("xmark.circle.fill", 13, NSColor(white: 1, alpha: 0.3), in: NSRect(x: box.maxX - 64, y: box.minY + 10, width: 24, height: 24)) }
+            symbol("pin", 13, NSColor(white: 1, alpha: 0.55), in: NSRect(x: box.maxX - 38, y: box.minY + 10, width: 24, height: 24))
+        }
+        if showCard {
+            // the card's top part, below the box, with an arrow up to it
+            let width: CGFloat = 420, src = NSRect(x: 0, y: card.size.height - min(card.size.height, 300), width: card.size.width, height: min(card.size.height, 300))
+            let r = NSRect(x: box.midX - width / 2, y: box.maxY + 14, width: width, height: width * src.height / src.width)
+            NSGraphicsContext.current?.saveGraphicsState()
+            let shadow = NSShadow(); shadow.shadowBlurRadius = 18; shadow.shadowColor = NSColor(white: 0, alpha: 0.6); shadow.set()
+            let arrow = NSBezierPath()
+            arrow.move(to: NSPoint(x: box.midX - 11, y: r.minY + 1)); arrow.line(to: NSPoint(x: box.midX, y: r.minY - 11))
+            arrow.line(to: NSPoint(x: box.midX + 11, y: r.minY + 1)); arrow.close()
+            NSColor(white: 0.12, alpha: 1).setFill()
+            let body = NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10); body.append(arrow); body.fill()
+            NSGraphicsContext.current?.restoreGraphicsState()
+            NSGraphicsContext.current?.saveGraphicsState()
+            NSBezierPath(roundedRect: r, xRadius: 10, yRadius: 10).addClip()
+            card.draw(in: r, from: src, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+            NSGraphicsContext.current?.restoreGraphicsState()
+        }
+        if !keysDown.isEmpty { keys(keysDown, lit: lit) }
+        NSGraphicsContext.current = nil
+        return rep.cgImage!
+    }
+    let shortcut = ["⌃", "⌘", "L"]
+    var typed = [(typeFrame(nil), 0.8), (typeFrame(nil, keysDown: shortcut), 0.3), (typeFrame(nil, keysDown: shortcut, lit: true), 0.25),
+                 (typeFrame("", keysDown: shortcut), 0.6)]
+    for n in 1...sc.word.count { typed.append((typeFrame(String(sc.word.prefix(n))), 0.18)) }
+    typed += [(typeFrame(sc.word, keysDown: ["↩ return"]), 0.35), (typeFrame(sc.word, keysDown: ["↩ return"], lit: true), 0.2),
+              (typeFrame(sc.word, showCard: true), 3.5)]
+    gif("mode-type.gif", typed, crop: CGRect(x: 20, y: 20, width: W - 40, height: H - 40))
 }
 
 let out = docs.appendingPathComponent("demo.gif")

@@ -38,7 +38,8 @@ func badge(_ code: String) -> NSAttributedString {
 // a speaker button that says the text in that language: the system's speaker symbol, in the accent colour
 func speaker(_ text: String, _ lang: String, size: CGFloat = 14) -> NSAttributedString {
     var u = URLComponents(); u.scheme = "say"; u.host = lang; u.queryItems = [URLQueryItem(name: "t", value: text)]
-    let out = NSMutableAttributedString(string: "  ")
+    // no-break spaces and a word joiner: the icon wraps with the last word, never onto a line of its own
+    let out = NSMutableAttributedString(string: "\u{00A0}\u{00A0}\u{2060}")
     let config = NSImage.SymbolConfiguration(pointSize: size, weight: .medium).applying(.init(paletteColors: [.controlAccentColor]))
     if let image = NSImage(systemSymbolName: "speaker.wave.2.fill", accessibilityDescription: "Say it")?.withSymbolConfiguration(config) {
         let a = NSTextAttachment()
@@ -46,7 +47,7 @@ func speaker(_ text: String, _ lang: String, size: CGFloat = 14) -> NSAttributed
         a.bounds = NSRect(x: 0, y: -2, width: image.size.width, height: image.size.height)
         out.append(NSAttributedString(attachment: a))
     } else { out.append(NSAttributedString(string: "🔈")) }
-    out.addAttributes([.link: u.url!, .cursor: NSCursor.pointingHand], range: NSRange(location: 2, length: out.length - 2))
+    out.addAttributes([.link: u.url!, .cursor: NSCursor.pointingHand], range: NSRange(location: 3, length: out.length - 3))
     return out
 }
 
@@ -140,10 +141,13 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
             tag.addAttributes([.link: URL(string: "lookupword://section/\(i)")!, .cursor: NSCursor.pointingHand],
                               range: NSRange(location: 0, length: tag.length))
         }
-        out.append(tag)
-        out.append(run("  ", .systemFont(ofSize: 15)))
-        out.append(run(words, serif(17, .semibold)))
-        out.append(speaker(words, code))
+        // a tab to the words, and a wrapped line indented to them, not back under the badge
+        let line = NSMutableAttributedString(attributedString: tag)
+        line.append(run("\t", .systemFont(ofSize: 15)))
+        line.append(run(words, serif(17, .semibold)))
+        line.append(speaker(words, code))
+        line.addAttribute(.paragraphStyle, value: indent(0, 32, tab: 32), range: NSRange(location: 0, length: line.length))
+        out.append(line)
     }
     // Collapse all (or Expand all), small and muted, at the right above the first dictionary, where its reader is
     if !e.sections.isEmpty {
