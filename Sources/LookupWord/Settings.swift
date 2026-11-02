@@ -26,7 +26,7 @@ final class SettingsModel: ObservableObject {
         let file = (try? Data(contentsOf: Paths.config)).flatMap { try? JSONDecoder().decode(Config.self, from: $0) } ?? config
         languages = Set(file.languages + ["en"])
         hotkey = ["option", "control", "command", "shift"].contains(file.hotkey) ? file.hotkey : "option"
-        typeKey = typeShortcuts.contains { $0.id == file.typeShortcut } ? file.typeShortcut : typeShortcuts[0].id
+        typeKey = Shortcut.from(file.typeShortcut).id
         menuBar = file.menuBar
         closeAfter = file.closeAfter
         storeType = file.store.type
@@ -74,6 +74,22 @@ final class SettingsModel: ObservableObject {
         languages.insert(lang.code)
     }
 
+    @Published var recordingShortcut = false
+    var recorder: Any?
+    func startRecording() {
+        recordingShortcut = true
+        recorder = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
+            guard let self else { return e }
+            if e.keyCode == 53, e.modifierFlags.intersection([.control, .option, .command]).isEmpty { self.stopRecording(); return nil }  // Escape
+            if let s = Shortcut.from(e) { self.typeKey = s.id; self.stopRecording() } else { NSSound.beep() }
+            return nil
+        }
+    }
+    func stopRecording() {
+        recordingShortcut = false
+        if let m = recorder { NSEvent.removeMonitor(m); recorder = nil }
+    }
+
     func choosePath() {
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
@@ -119,9 +135,7 @@ struct SettingsView: View {
                             }
                         }
                         Spacer()
-                        Picker("", selection: $model.typeKey) {
-                            ForEach(typeShortcuts, id: \.id) { Text($0.id == "none" ? "Off" : $0.symbol).tag($0.id) }
-                        }.labelsHidden().frame(width: 110)
+                        ShortcutRecorder(model: model)
                     }
                     Toggle("Show the menu bar icon", isOn: $model.menuBar)
                     HStack {
@@ -198,6 +212,26 @@ struct SettingsView: View {
         }
         .frame(width: 520)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+// The type-a-word box's shortcut, recorded: click, then press the combination (with ⌃, ⌥ or ⌘); Escape cancels; Off
+// turns it off. The press is caught in this window only, while recording. (Its state lives in SettingsModel: the
+// Command Line Tools' SwiftUI has no @State.)
+struct ShortcutRecorder: View {
+    @ObservedObject var model: SettingsModel
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(model.recordingShortcut ? "Press a shortcut…" : Shortcut.from(model.typeKey).symbol) {
+                model.recordingShortcut ? model.stopRecording() : model.startRecording()
+            }
+            .frame(minWidth: 110)
+            .help("Click, then press the keys: at least one of ⌃ Control, ⌥ Option or ⌘ Command, and a key. Escape cancels.")
+            if model.typeKey != "none" && !model.recordingShortcut {
+                Button("Off") { model.typeKey = "none" }.help("No shortcut: the box opens from the menu bar menu only")
+            }
+        }
+        .onDisappear { model.stopRecording() }
     }
 }
 

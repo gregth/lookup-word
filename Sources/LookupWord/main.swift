@@ -132,13 +132,9 @@ final class Menu: NSObject {
         how.image = NSImage(systemSymbolName: "text.magnifyingglass", accessibilityDescription: nil)
         m.addItem(how)
         m.addItem(.separator())
-        let typed = NSMenuItem(title: "Look Up a Word…", action: #selector(typeWord), keyEquivalent: typeShortcut.id == "none" ? "" : "l")
-        // shown only: the hot key works from any app
-        var mask: NSEvent.ModifierFlags = []
-        if typeShortcut.symbol.contains("⌃") { mask.insert(.control) }
-        if typeShortcut.symbol.contains("⌥") { mask.insert(.option) }
-        if typeShortcut.symbol.contains("⌘") { mask.insert(.command) }
-        typed.keyEquivalentModifierMask = mask
+        // its shortcut shown, the one chosen in Settings (the hot key itself works from any app)
+        let typed = NSMenuItem(title: "Look Up a Word…", action: #selector(typeWord), keyEquivalent: typeShortcut.menuKey)
+        typed.keyEquivalentModifierMask = typeShortcut.menuFlags
         typed.target = self
         typed.image = NSImage(systemSymbolName: "character.cursor.ibeam", accessibilityDescription: nil)
         m.addItem(typed)

@@ -126,7 +126,7 @@ and the card appears; the third is a box to type into. To close it, click anywhe
 
 ### 3. Or type it
 
-- Press **⌃⌘L** (Control, Command and L together; you can choose another in Settings) in any app, or choose **Look Up a Word…** in the menu bar menu.
+- Press **⌃⌘L** (Control, Command and L together; in Settings you can record any other) in any app, or choose **Look Up a Word…** in the menu bar menu.
   A box opens near the top of the screen: type the word, in any of your languages, and press Return. Its card
   shows below the box, and the box keeps the keyboard, so you can type the next word straight away.
 - **Escape** closes the card; press it again to close the box. A click anywhere else closes both.
@@ -156,7 +156,7 @@ the menu. Every key is optional.
 |---|---|---|
 | `languages` | English, plus your Mac's preferred languages that have a pack | The language packs to use, from [packs/](packs/). English is the pivot and is always on. |
 | `hotkey` | `"option"` | The key to press twice: `option`, `control`, `command` or `shift`. |
-| `typeShortcut` | `"control-command-l"` | The shortcut for the box to type a word: `control-command-l` (⌃⌘L), `option-command-l`, `control-option-command-l`, `control-option-l`, or `none`. |
+| `typeShortcut` | ⌃⌘L | The type-a-word box's shortcut: any key with ⌃, ⌥ or ⌘. Set it in **Settings…**: click the shortcut, then press the keys you want (Escape cancels); **Off** turns it off. Stored as `"key:<code>:<modifiers>:<key>"`, or `"none"`. |
 | `menuBar` | `true` | Show the menu bar icon. **Hide Menu Bar Icon** in its menu sets this to `false`. With the icon hidden, open Lookup Word again from Applications for its settings. |
 | `closeAfter` | `30` | Seconds before the card closes by itself; `0` keeps it open until a click or a key. |
 | `debug` | `false` | Save each screen reading as `capture.png` in the support folder and log its coordinates. |

@@ -5,16 +5,57 @@
 import AppKit
 import Carbon.HIToolbox
 
-// The shortcuts to choose from (Settings), as few as keeps them easy: ⌃⌘L by default, as neither macOS nor the usual
-// window managers use it (Rectangle takes ⌃⌥ with letters).
-let typeShortcuts: [(id: String, key: UInt32, modifiers: UInt32, symbol: String)] = [
-    ("control-command-l", UInt32(kVK_ANSI_L), UInt32(controlKey | cmdKey), "⌃⌘L"),
-    ("option-command-l", UInt32(kVK_ANSI_L), UInt32(optionKey | cmdKey), "⌥⌘L"),
-    ("control-option-command-l", UInt32(kVK_ANSI_L), UInt32(controlKey | optionKey | cmdKey), "⌃⌥⌘L"),
-    ("control-option-l", UInt32(kVK_ANSI_L), UInt32(controlKey | optionKey), "⌃⌥L"),
-    ("none", 0, 0, "none"),
-]
-let typeShortcut = typeShortcuts.first { $0.id == config.typeShortcut } ?? typeShortcuts[0]
+// The type-a-word box's shortcut: any key with ⌃, ⌥ or ⌘ (his ask, 2026-11-02: "select any key we want"), recorded in
+// Settings and stored as "key:<key code>:<Carbon modifiers>:<key's label>"; "none" turns it off. The ids of the first
+// version's four choices still work.
+struct Shortcut {
+    var id: String, key: UInt32, modifiers: UInt32, label: String
+    var symbol: String {
+        guard id != "none" else { return "Off" }
+        return (modifiers & UInt32(controlKey) != 0 ? "⌃" : "") + (modifiers & UInt32(optionKey) != 0 ? "⌥" : "")
+            + (modifiers & UInt32(shiftKey) != 0 ? "⇧" : "") + (modifiers & UInt32(cmdKey) != 0 ? "⌘" : "") + label
+    }
+    // the menu item shows it: its key and modifiers in AppKit's terms
+    var menuKey: String { label.count == 1 ? label.lowercased() : "" }
+    var menuFlags: NSEvent.ModifierFlags {
+        var f: NSEvent.ModifierFlags = []
+        if modifiers & UInt32(controlKey) != 0 { f.insert(.control) }
+        if modifiers & UInt32(optionKey) != 0 { f.insert(.option) }
+        if modifiers & UInt32(shiftKey) != 0 { f.insert(.shift) }
+        if modifiers & UInt32(cmdKey) != 0 { f.insert(.command) }
+        return f
+    }
+    static let off = Shortcut(id: "none", key: 0, modifiers: 0, label: "")
+    static let standard = Shortcut(id: "control-command-l", key: UInt32(kVK_ANSI_L), modifiers: UInt32(controlKey | cmdKey), label: "L")
+    static func from(_ id: String) -> Shortcut {
+        let legacy: [String: UInt32] = ["control-command-l": UInt32(controlKey | cmdKey), "option-command-l": UInt32(optionKey | cmdKey),
+                                        "control-option-command-l": UInt32(controlKey | optionKey | cmdKey), "control-option-l": UInt32(controlKey | optionKey)]
+        if id == "none" { return .off }
+        if let m = legacy[id] { return Shortcut(id: id, key: UInt32(kVK_ANSI_L), modifiers: m, label: "L") }
+        let parts = id.split(separator: ":", maxSplits: 3, omittingEmptySubsequences: false)
+        if parts.count == 4, parts[0] == "key", let k = UInt32(parts[1]), let m = UInt32(parts[2]), !parts[3].isEmpty {
+            return Shortcut(id: id, key: k, modifiers: m, label: String(parts[3]))
+        }
+        return .standard
+    }
+    // a key press, as a shortcut: nil without ⌃, ⌥ or ⌘ (a plain letter would stop being typeable everywhere)
+    static func from(_ e: NSEvent) -> Shortcut? {
+        let f = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard !f.intersection([.control, .option, .command]).isEmpty else { return nil }
+        var m: UInt32 = 0
+        if f.contains(.control) { m |= UInt32(controlKey) }
+        if f.contains(.option) { m |= UInt32(optionKey) }
+        if f.contains(.shift) { m |= UInt32(shiftKey) }
+        if f.contains(.command) { m |= UInt32(cmdKey) }
+        let named: [UInt16: String] = [49: "Space", 36: "↩", 48: "⇥", 51: "⌫", 53: "⎋", 123: "←", 124: "→", 125: "↓", 126: "↑",
+                                       122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7", 100: "F8",
+                                       101: "F9", 109: "F10", 103: "F11", 111: "F12"]
+        let label = named[e.keyCode] ?? (e.charactersIgnoringModifiers?.uppercased() ?? "").replacingOccurrences(of: ":", with: "")
+        guard !label.isEmpty else { return nil }
+        return Shortcut(id: "key:\(e.keyCode):\(m):\(label)", key: UInt32(e.keyCode), modifiers: m, label: label)
+    }
+}
+let typeShortcut = Shortcut.from(config.typeShortcut)
 var typeShortcutTaken = false  // macOS refused it: another app has it
 
 let typeBoxOriginKey = "typeBoxOrigin"  // where he last dragged the box; none: centred

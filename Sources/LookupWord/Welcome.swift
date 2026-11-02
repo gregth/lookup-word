@@ -9,11 +9,11 @@ final class WelcomeModel: ObservableObject {
     @Published var trusted = AXIsProcessTrusted()
     @Published var screen = CGPreflightScreenCaptureAccess()
     var timer: Timer?
-    func watch(_ gotAccessibility: @escaping () -> Void) {
+    func watch(_ gotAccessibility: @escaping () -> Void, _ gotAny: @escaping () -> Void) {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
-            if !self.trusted, AXIsProcessTrusted() { self.trusted = true; gotAccessibility() }
-            if !self.screen, CGPreflightScreenCaptureAccess() { self.screen = true }
+            if !self.trusted, AXIsProcessTrusted() { self.trusted = true; gotAccessibility(); gotAny() }
+            if !self.screen, CGPreflightScreenCaptureAccess() { self.screen = true; gotAny() }
         }
     }
 }
@@ -61,7 +61,8 @@ struct WelcomeView: View {
             PermissionRow(title: "Point at a word", badge: "Optional",
                           text: "\(howPoint) \(whyScreen) You can allow it later: pointing at a word will ask again.",
                           granted: model.screen, pane: "Privacy_ScreenCapture")
-            Text("You can also press \(typeShortcut.symbol) anywhere to type a word into a box: that needs no permission.")
+            Text(typeShortcut.id == "none" ? "You can also type a word into a box, from the menu bar's Look Up a Word…: that needs no permission."
+                 : "You can also press \(typeShortcut.symbol) anywhere to type a word into a box: that needs no permission.")
                 .font(.callout).fixedSize(horizontal: false, vertical: true)
             Text("When you click Allow, macOS asks you; choose Open System Settings there, turn on the switch next to Lookup Word, then come back here. This window updates by itself. For pointing, macOS may ask to quit and reopen Lookup Word.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -110,5 +111,10 @@ func showWelcome() {
     welcomeWindow = w
     // once Accessibility is allowed: the shortcut's monitors again, since those added before it may not see other
     // apps' keys
-    model.watch { watchKeys() }
+    // and each permission given brings the window back to the front: System Settings covered it, so it seemed to have
+    // gone away (his report, 2026-11-02) when it was the tick and the next step he needed to see
+    model.watch({ watchKeys() }, {
+        NSApp.activate(ignoringOtherApps: true)
+        welcomeWindow?.makeKeyAndOrderFront(nil)
+    })
 }
