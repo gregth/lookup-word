@@ -20,6 +20,10 @@ dictionary is optional but improves the card.
 
 ### 2. Write `pack.json`
 
+French's, shortened ([packs/fr/pack.json](packs/fr/pack.json) has all its translations, labels and variants). The
+Oxford bilinguals (French, German, Spanish) spell their labels out (*transitive verb*, not *vtr*), so a pack for
+another one can start from it; check each label against the dictionary's own entries:
+
 ```json
 {
   "code": "fr",
@@ -28,12 +32,23 @@ dictionary is optional but improves the card.
   "monolingual": "French",
   "bilingual": "French - English",
   "dictionaryIds": ["com.apple.dictionary.fr.Multi", "com.apple.dictionary.OxfordFrench"],
+  "links": [
+    {"name": "Larousse", "url": "https://www.larousse.fr/dictionnaires/francais/{word}"},
+    {"name": "WordReference", "url": "https://www.wordreference.com/fren/{word}"}
+  ],
   "recognizer": "fr",
   "ocr": ["fr-FR"],
   "spellChecker": "fr",
-  "verb": { "entryPattern": "\\s(v|vtr|vi)\\b", "prefix": 60 },
-  "verbLabels": ["vtr", "vi", "v"],
-  "gloss": { "labels": ["nm", "nf", "adj"], "inner": [], "cuts": [] }
+  "verb": { "entryPattern": "\\s(?:transitive|intransitive|auxiliary|pronominal|impersonal) verb\\b", "prefix": 800 },
+  "verbLabels": ["transitive verb", "intransitive verb", "modal verb", "auxiliary verb", "verb"],
+  "stripHints": true,
+  "translations": {"aller": "to go", "être": "to be"},
+  "gloss": {
+    "labels": ["informal", "masculine", "feminine", "noun", "adjective", "transitive", "intransitive", "verb", "adverb"],
+    "cuts": ["before n"],
+    "trailing": ["informal", "formal", "literal", "figurative"],
+    "variants": [["\\s*;", ","]]
+  }
 }
 ```
 
@@ -54,7 +69,7 @@ dictionary is optional but improves the card.
 | `lemmas` | A `form⇥lemma` list (`.tsv` or `.tsv.xz`) for languages whose dictionaries don't find base forms. [simplemma](https://github.com/adbar/simplemma) has lists for about 50 languages. Keep its licence notice next to the file. |
 | `translations` | The English for the few words whose entry opens with uses and examples instead of a translation (`{"aller": "to go"}`). Keep it to those: the card shows the entry below. |
 | `links` | Two or three online dictionaries for the card's **Read more**, each `{"name": "Larousse", "url": "https://www.larousse.fr/dictionnaires/francais/{word}"}`; `{word}` becomes the headword. Check each URL in a browser with a real word. |
-| `gloss` | Grammar labels to drop from translations: `labels` at the start, `inner` anywhere, `cuts` to stop at, `grammarNotes` (abbreviations ending in `.` before the meaning), `variants` (regex and replacement pairs). | `labels` and `inner` are shared by every pack in use (several Oxford dictionaries use the same English labels); `cuts`, `grammarNotes` and `variants` apply only to entries from this pack's dictionary, so one pack's rewrites never change another's.
+| `gloss` | Grammar labels to drop from translations: `labels` at the start, `inner` anywhere, `cuts` to stop at, `trailing` at the end of an item (and an item that is only one), `grammarNotes` (abbreviations ending in `.` before the meaning), `variants` (regex and replacement pairs). `labels` and `inner` are shared by every pack in use (several Oxford dictionaries use the same English labels); `cuts`, `trailing`, `grammarNotes` and `variants` apply only to entries from this pack's dictionary, so one pack's rewrites never change another's. |
 
 ### 3. Test it
 
@@ -82,9 +97,10 @@ back to Greek and lists the dictionary forms a regular ending points to.
 ## Code
 
 - One file per concern in [Sources/LookupWord/](Sources/LookupWord/): settings, packs, dictionaries, screen reading,
-  matching, lookup, card, store, the settings window, the welcome window, and `main.swift` (shortcut, menu,
-  command-line checks).
+  matching, lookup, card, store, the settings window, the welcome window, the type-a-word box (`Type.swift`: the box,
+  its hot key, the pin and its place), and `main.swift` (shortcut, menu, command-line checks).
   [docs/DESIGN.md](docs/DESIGN.md) draws how they fit.
 - Comments say why, with the example that motivated a rule (*liep* → "gaan walk").
 - Before a pull request, run [scripts/test-packs.sh](scripts/test-packs.sh) and, if you touched screen reading,
   `--pointer` on a few lines in each language.
+- A security problem goes privately, not in an issue or a pull request: see [SECURITY.md](SECURITY.md).

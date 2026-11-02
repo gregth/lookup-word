@@ -5,7 +5,7 @@
 import AppKit
 import Carbon.HIToolbox
 
-// The type-a-word box's shortcut: any key with ⌃, ⌥ or ⌘ (his ask, 2026-11-02: "select any key we want"), recorded in
+// The type-a-word box's shortcut: any key with two of ⌃, ⌥ and ⌘, recorded in
 // Settings and stored as "key:<key code>:<Carbon modifiers>:<key's label>"; "none" turns it off. The ids of the first
 // version's four choices still work.
 struct Shortcut {
@@ -38,10 +38,11 @@ struct Shortcut {
         }
         return .standard
     }
-    // a key press, as a shortcut: nil without ⌃, ⌥ or ⌘ (a plain letter would stop being typeable everywhere)
+    // a key press, as a shortcut: nil without two of ⌃, ⌥ and ⌘. The hot key takes its combination from every app:
+    // ⌘ alone would take an app's own shortcut (⌘C, ⌘L), ⌥ alone a typed character (⌥L is @ on a German keyboard)
     static func from(_ e: NSEvent) -> Shortcut? {
         let f = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard !f.intersection([.control, .option, .command]).isEmpty else { return nil }
+        guard f.intersection([.control, .option, .command]).rawValue.nonzeroBitCount >= 2 else { return nil }
         var m: UInt32 = 0
         if f.contains(.control) { m |= UInt32(controlKey) }
         if f.contains(.option) { m |= UInt32(optionKey) }
@@ -49,25 +50,29 @@ struct Shortcut {
         if f.contains(.command) { m |= UInt32(cmdKey) }
         let named: [UInt16: String] = [49: "Space", 36: "↩", 48: "⇥", 51: "⌫", 53: "⎋", 123: "←", 124: "→", 125: "↓", 126: "↑",
                                        122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7", 100: "F8",
-                                       101: "F9", 109: "F10", 103: "F11", 111: "F12"]
+                                       101: "F9", 109: "F10", 103: "F11", 111: "F12", 105: "F13", 107: "F14", 113: "F15",
+                                       106: "F16", 64: "F17", 79: "F18", 80: "F19", 90: "F20", 117: "⌦", 115: "↖", 119: "↘",
+                                       116: "⇞", 121: "⇟", 76: "⌤"]
         let label = named[e.keyCode] ?? (e.charactersIgnoringModifiers?.uppercased() ?? "").replacingOccurrences(of: ":", with: "")
-        guard !label.isEmpty else { return nil }
+        // a key with no name of its own and no printable character (a control or private-use one) would read as a blank
+        guard !label.isEmpty, !label.unicodeScalars.contains(where: { $0.properties.generalCategory == .control
+            || $0.properties.generalCategory == .privateUse }) else { return nil }
         return Shortcut(id: "key:\(e.keyCode):\(m):\(label)", key: UInt32(e.keyCode), modifiers: m, label: label)
     }
 }
 let typeShortcut = Shortcut.from(config.typeShortcut)
 var typeShortcutTaken = false  // macOS refused it: another app has it
 
-let typeBoxOriginKey = "typeBoxOrigin"  // where he last dragged the box; none: centred
+let typeBoxOriginKey = "typeBoxOrigin"  // where the box was last dragged; none: centred
 
 final class TypeBox: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
     let field = NSTextField()
     let pin = NSButton()
-    let clear = NSButton()  // ⓧ, while there is text: the word gone, and its card (his ask, 2026-11-02)
+    let clear = NSButton()  // ⓧ, while there is text: the word gone, and its card
     // pinned, a click outside leaves the box (and its card) open; Escape closes the card first, then the box
     var pinned = false { didSet { showPin() } }
     init() {
-        let size = NSSize(width: 400, height: 44)  // small, as Spotlight's field (his report, 2026-11-02: "too big")
+        let size = NSSize(width: 400, height: 44)  // small, as Spotlight's field
         super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
                    backing: .buffered, defer: false)
         titleVisibility = .hidden
@@ -120,8 +125,7 @@ final class TypeBox: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
     }
     override var canBecomeKey: Bool { true }
 
-    // the app has no Edit menu, so ⌘A, ⌘C, ⌘V, ⌘X and ⌘Z reach the field only from here (his ask, 2026-11-02: "cmd + A to
-    // select all")
+    // the app has no Edit menu, so ⌘A, ⌘C, ⌘V, ⌘X and ⌘Z reach the field only from here
     override func performKeyEquivalent(with e: NSEvent) -> Bool {
         guard e.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .function]) == .command,
               let key = e.charactersIgnoringModifiers?.lowercased() else { return super.performKeyEquivalent(with: e) }
@@ -132,8 +136,8 @@ final class TypeBox: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         return super.performKeyEquivalent(with: e)
     }
 
-    // where he last dragged it, while that is still on a screen; else centred, a fifth of the way down the screen the
-    // pointer is on (his reports, 2026-11-02: "did not open in the center", "an option to reset position")
+    // where it was last dragged, while that is still on a screen; else centred, a fifth of the way down the screen the
+    // pointer is on
     var placing = false
     func place() {
         placing = true; defer { placing = false }
@@ -174,7 +178,7 @@ func showTypeBox() {
     close()  // a card already open
     if typeBox == nil { typeBox = TypeBox() }
     typeBox?.place()
-    // a click outside closes it, before a word is typed too (his ask, 2026-11-02)
+    // a click outside closes it, before a word is typed too
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in closeUnlessPinned() }
     NSApp.activate(ignoringOtherApps: true)
     typeBox?.makeKeyAndOrderFront(nil)
@@ -202,9 +206,10 @@ func lookUpTyped(_ word: String, below box: NSRect) {
     let mine = shown
     // a click outside the box and the card closes both; keys go to the box, so typing the next word just works
     monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in closeUnlessPinned() }
-    if config.closeAfter > 0, typeBox?.pinned != true { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
+    // the card closed by time: the box stays, with its click-outside watch back (close() takes it away)
+    if config.closeAfter > 0, typeBox?.pinned != true { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in closeCard() } }
     show(word, NSRect(x: box.midX - 1, y: box.minY - 1, width: 2, height: 2), word, mine, highlight: false)
-    // its card goes with the box (his asks, 2026-11-02: "should move around with the box", "not very smooth"): the
+    // its card goes with the box, smoothly: the
     // spot it hangs from is the box's child window, so the window server moves both together, frame by frame
     if let m = mark, let b = typeBox { b.addChildWindow(m, ordered: .above) }
     // the box keeps the keyboard, so the next word can be typed at once (showing the card would take it)

@@ -1,8 +1,10 @@
 #!/bin/zsh
 # Stops Lookup Word and removes the app, its launch agent and its permissions. Your settings and backups stay in
-# ~/Library/Application Support/Lookup Word unless you pass --purge; a vocabulary file you keep elsewhere always stays.
+# ~/Library/Application Support/Lookup Word, and its logs in ~/Library/Logs/Lookup Word, unless you pass --purge, which
+# also removes its preferences and cache; a vocabulary file you keep elsewhere always stays.
 #
 #   ./uninstall.sh [--purge]
+[ -n "${ZSH_VERSION:-}" ] || exec /bin/zsh "$0" "$@"  # run as sh or bash: the ${(j:, :)…} below is zsh
 set -uo pipefail
 # LOOKUP_LABEL, LOOKUP_APP_DIR, LOOKUP_SUPPORT and LOOKUP_LOGS name a second, separate copy (scripts/test-install.sh)
 label=${LOOKUP_LABEL:-io.github.gregth.lookup-word}
@@ -28,9 +30,17 @@ rm -f "$HOME/Library/LaunchAgents/$label.plist" || failed+=("the launch agent")
 rm -rf "$app" || failed+=("the app")
 if [[ ${1:-} == --purge ]]; then
   rm -rf "$support" "$logs" || failed+=("the settings or logs")
-  kept=" Settings, backups and the vocabulary in that folder deleted; a vocabulary file elsewhere is never touched."
+  # the card's remembered state (UserDefaults: collapsed sections, the type-a-word box's place) and the URL cache
+  # DictionaryServices writes; defaults delete fails on a domain that is not there, which is not a failure here, and
+  # leaves an empty file behind
+  if defaults read "$label" >/dev/null 2>&1; then defaults delete "$label" >/dev/null || failed+=("the preferences"); fi
+  rm -f "$HOME/Library/Preferences/$label.plist"
+  rm -rf "$HOME/Library/Caches/$label" || failed+=("the cache")
+  kept=" Settings, backups, logs, preferences and the vocabulary in $support deleted; a vocabulary file elsewhere is"
+  kept+=" never touched."
 else
-  kept=" Settings and backups kept in $support; a vocabulary file elsewhere is never touched."
+  kept=" Settings and backups kept in $support, logs in $logs (./uninstall.sh --purge removes them); a vocabulary"
+  kept+=" file elsewhere is never touched."
 fi
 if (( ${#failed} )); then
   echo "Lookup Word is partly uninstalled. Could not remove: ${(j:, :)failed}.$kept$note" >&2

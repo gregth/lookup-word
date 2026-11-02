@@ -1,0 +1,4 @@
+contact_links:
+  - name: Report a security issue
+    url: https://github.com/gregth/lookup-word/security/advisories/new
+    about: Privately, through GitHub's private vulnerability reporting (SECURITY.md)

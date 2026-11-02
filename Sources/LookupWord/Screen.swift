@@ -184,7 +184,8 @@ func wordAt(_ image: CGImage, _ pt: CGPoint) -> (Reading, CGRect)? {
         let inside = chars[a...b].filter { $0.midX >= x0 && $0.midX <= x1 }
         let xs = inside.isEmpty ? (box.minX, box.maxX) : (inside.map { $0.minX }.min()!, inside.map { $0.maxX }.max()!)
         let tight = inked(image, CGRect(x: xs.0, y: line.boundingBox.minY, width: xs.1 - xs.0, height: line.boundingBox.height))
-        log("read \(before.joined(separator: " ")) [\(word)] \(after.joined(separator: " ")) off the screen")
+        // the words around it only when debugging: the log keeps every line, and they are the screen's text
+        log(config.debug ? "read \(before.joined(separator: " ")) [\(word)] \(after.joined(separator: " ")) off the screen" : "read [\(word)] off the screen")
         return (Reading(word: word, before: before, after: after, around: around), tight)
     }
     log("no word read at the pointer (\(lines.count) lines)")
@@ -237,14 +238,25 @@ func recognizer() -> VNRecognizeTextRequest {
 
 // The true text under the pointer: apps that give no word at a point (Chrome, Electron) still give the text of the
 // element there, a web page's paragraph. The screen reading says where the word is and roughly what; this says what
-// it really is (Greek ιθαγενές read as "IBaYEVÉS", which no letter mapping undoes).
+// it really is (Greek ιθαγενές read as "IBaYEVÉS", which no letter mapping undoes). At most 2000 characters, around
+// the pointer: the element can be a whole document, which the matching (on the main actor) would take seconds over.
 func textUnderPointer(_ mouse: NSPoint) -> String? {
     let top = NSScreen.screens.first?.frame.maxY ?? 0
     var hit: AXUIElement?
     guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(mouse.x), Float(top - mouse.y), &hit) == .success,
           let el = hit else { return nil }
     for key in [kAXValueAttribute, kAXTitleAttribute, kAXDescriptionAttribute] {
-        if let s = attr(el, key) as? String, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return s }
+        guard let s = attr(el, key) as? String, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+        let ns = s as NSString
+        if ns.length <= 2000 { return s }
+        // the text around the character at the pointer, when the app says which; else none (the reading alone is
+        // better than a match against the wrong part of the text)
+        var pt = CGPoint(x: mouse.x, y: top - mouse.y), range = CFRange()
+        guard key == kAXValueAttribute, let arg = AXValueCreate(.cgPoint, &pt),
+              let v = param(el, kAXRangeForPositionParameterizedAttribute, arg), CFGetTypeID(v) == AXValueGetTypeID(),
+              AXValueGetValue(v as! AXValue, .cfRange, &range), range.location >= 0, range.location < ns.length else { return nil }
+        let lo = max(0, range.location - 1000), hi = min(ns.length, range.location + 1000)
+        return ns.substring(with: ns.rangeOfComposedCharacterSequences(for: NSRange(location: lo, length: hi - lo)))
     }
     return nil
 }

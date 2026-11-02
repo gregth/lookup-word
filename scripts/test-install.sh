@@ -15,8 +15,12 @@ real_plist=$HOME/Library/LaunchAgents/io.github.gregth.lookup-word.plist
 real_before=$(shasum "$real_plist" 2>/dev/null; pgrep -f "$HOME/Applications/Lookup Word.app/Contents/MacOS/LookupWord")
 pass=0 fail=0
 check() { if eval "$2"; then (( pass++ )); echo "ok    $1"; else (( fail++ )); echo "FAIL  $1"; fi }
-running() { launchctl print gui/$uid/$LOOKUP_LABEL 2>/dev/null | grep -q 'state = running'; }
+running() { launchctl print gui/$uid/$LOOKUP_LABEL 2>/dev/null | grep 'state = running' >/dev/null; }  # not grep -q, here and below: under pipefail, the writer's SIGPIPE fails the pipe
 pid() { launchctl print gui/$uid/$LOOKUP_LABEL 2>/dev/null | awk '/^\tpid = /{print $3}'; }
+unload() {  # bootout returns before the job is gone, and bootstrapping it again before then fails
+  launchctl bootout gui/$uid/$LOOKUP_LABEL 2>/dev/null
+  for _ in {1..50}; do launchctl print gui/$uid/$LOOKUP_LABEL >/dev/null 2>&1 || break; sleep 0.1; done
+}
 
 mkdir -p $LOOKUP_SUPPORT
 echo '{"menuBar": false, "store": {"type": "none"}}' > $LOOKUP_SUPPORT/config.json
@@ -29,11 +33,12 @@ check "its identifier is the test label" "[[ \$(/usr/libexec/PlistBuddy -c 'Prin
 check "its icon is bundled" "[[ -f '$app/Contents/Resources/AppIcon.icns' ]] && /usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' '$app/Contents/Info.plist' >/dev/null"
 check "its language packs are bundled" "[[ -f '$app/Contents/Resources/packs/en/pack.json' && -f '$app/Contents/Resources/packs/el/lemmas.tsv.xz' ]]"
 check "it is signed" "codesign --verify '$app' 2>/dev/null"
+check "with the hardened runtime (no DYLD_INSERT_LIBRARIES)" "codesign -dv '$app' 2>&1 | grep 'flags=.*runtime' >/dev/null"
 check "its launch agent exists" "[[ -f $plist ]]"
 check "the launch agent passes the test folders on" "grep -q '$LOOKUP_SUPPORT' $plist"
 sleep 2
 check "it is running" "running"
-check "the installed app finds its packs" "'$app/Contents/MacOS/LookupWord' --dictionaries 2>/dev/null | grep -q '^el Greek'"
+check "the installed app finds its packs" "'$app/Contents/MacOS/LookupWord' --dictionaries 2>/dev/null | grep '^el Greek' >/dev/null"
 first=$(pid)
 
 echo "— reinstall (an update)"
@@ -53,10 +58,34 @@ sleep 2
 check "the stray copy is gone" "! kill -0 $stray 2>/dev/null"
 check "the launch agent's copy runs instead" "running"
 
+echo "— a copy opened outside the launch agent while its job is loaded but stopped (Quit & Reopen, Finder)"
+unload
+"$app/Contents/MacOS/LookupWord" >/dev/null 2>&1 &  # a copy already running, so the agent's quits with success
+holder=$!; sleep 2
+launchctl bootstrap gui/$uid $plist; sleep 2
+check "the job is loaded but stopped" "launchctl print gui/$uid/$LOOKUP_LABEL >/dev/null 2>&1 && ! running"
+kill $holder 2>/dev/null; sleep 1
+"$app/Contents/MacOS/LookupWord" >/dev/null 2>&1 &
+opened=$!; sleep 3
+check "the opened copy quits" "! kill -0 $opened 2>/dev/null"
+for _ in {1..120}; do running && break; sleep 0.1; done  # launchd starts a job at most once every 10 s
+check "it started the launch agent's job instead" "running"
+
+echo "— Restart (the launch agent's copy asks launchd to restart its job)"
+# SIGUSR1 makes the test copy call restart(), as the settings' Restart button does
+if grep -qa 'restart: asked by SIGUSR1' "$app/Contents/MacOS/LookupWord"; then
+  before=$(pid); kill -USR1 $before; sleep 1
+  for _ in {1..120}; do running && [[ $(pid) != $before ]] && break; sleep 0.1; done  # (the 10 s again)
+  check "it is running again, as a new process" "running && [[ \$(pid) != '$before' ]]"
+  check "launchd restarted it, not the exit(1) fallback" "! grep -q 'launchctl kickstart gave' $LOOKUP_LOGS/lookup.log"
+else
+  echo "skip  this build has no SIGUSR1 restart hook"
+fi
+
 echo "— the app's own uninstall (the menu's code)"
 out=$("$app/Contents/MacOS/LookupWord" --uninstall 2>&1); code=$?
 echo "$out" | sed 's/^/      /'
-check "it reports success" "[[ $code == 0 ]] && print -r -- \"\$out\" | grep -q 'its permissions'"
+check "it reports success" "[[ $code == 0 ]] && print -r -- \"\$out\" | grep 'its permissions' >/dev/null"
 check "the app is gone" "[[ ! -e '$app' ]]"
 check "its launch agent file is gone" "[[ ! -e $plist ]]"
 sleep 1
@@ -67,6 +96,7 @@ echo "— install again, then uninstall.sh --purge"
 "$root/install.sh" </dev/null >>$tmp/install.log 2>&1
 sleep 2
 check "it is running" "running"
+defaults write $LOOKUP_LABEL typeBoxOrigin -string test; mkdir -p $HOME/Library/Caches/$LOOKUP_LABEL  # as the app leaves them
 out=$("$root/uninstall.sh" --purge 2>&1); code=$?
 echo "$out" | sed 's/^/      /'
 check "uninstall.sh reports success" "[[ $code == 0 ]]"
@@ -74,13 +104,14 @@ check "the app is gone" "[[ ! -e '$app' ]]"
 check "its launch agent file is gone" "[[ ! -e $plist ]]"
 check "its launch agent is unloaded" "! launchctl print gui/$uid/$LOOKUP_LABEL >/dev/null 2>&1"
 check "the settings and logs are gone" "[[ ! -e $LOOKUP_SUPPORT && ! -e $LOOKUP_LOGS ]]"
+check "its preferences and cache are gone" "! defaults read $LOOKUP_LABEL >/dev/null 2>&1 && [[ ! -e $HOME/Library/Caches/$LOOKUP_LABEL ]]"
 
 echo "— the real install"
 real_after=$(shasum "$real_plist" 2>/dev/null; pgrep -f "$HOME/Applications/Lookup Word.app/Contents/MacOS/LookupWord")
 check "it is untouched (same launch agent file, same process)" "[[ '$real_before' == '$real_after' ]]"
 
 launchctl bootout gui/$uid/$LOOKUP_LABEL 2>/dev/null; rm -f $plist  # in case a step failed midway
-rm -rf "$LOOKUP_APP_DIR"
+rm -rf "$LOOKUP_APP_DIR" "$HOME/Library/Caches/$LOOKUP_LABEL"; rm -f "$HOME/Library/Preferences/$LOOKUP_LABEL.plist"
 [[ $fail == 0 ]] && rm -rf $tmp || echo "Logs kept in $tmp"
 echo "$pass passed, $fail failed"
 (( fail == 0 ))

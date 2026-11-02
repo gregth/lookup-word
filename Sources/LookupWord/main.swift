@@ -36,11 +36,15 @@ func status(_ s: String) -> String {
 func show(_ raw: String, _ rect: NSRect?, _ around: String, _ mine: Int, highlight: Bool = true) {
     let hint = language(around)
     guard let e = lookUpEntry(raw, hint: hint) ?? (raw.contains(" ") ? nil : corrected(raw.trimmingCharacters(in: .punctuationCharacters), hint: hint)) else {
-        log("no entry for \(raw)")
+        // a word, or only the selection's length: a selection can be a whole email, or a password shown in plain text
+        let wordLike = raw.count <= 40 && raw.allSatisfy { $0.isLetter || " '-’".contains($0) } && raw.filter { $0 == " " }.count <= 3
+        log(wordLike ? "no entry for \(raw)" : "no entry for a selection of \(raw.count) characters")
         let w = raw.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        announce("“\(w.prefix(40))” is in none of your dictionaries")
         return present(message("“\(w)” is in none of your dictionaries" + (w.first?.isUppercase == true ? ": a name, perhaps. Dictionaries leave names out." : ".")), at: rect, highlight: highlight)
     }
     log("\(e.lang) \(e.word)")
+    announce(([e.word] + e.tr.prefix(1).map { $0.1 }).joined(separator: ": "))
     present(card(e, status: status(store is NoStore ? "" : "Saving…")), at: rect, highlight: highlight)
     saves.async {
         let answer = store.save(e)
@@ -48,14 +52,28 @@ func show(_ raw: String, _ rect: NSRect?, _ around: String, _ mine: Int, highlig
     }
 }
 
+// The card spoken by VoiceOver: it opens while another app keeps the focus, so VoiceOver would not notice it.
+func announce(_ s: String) {
+    guard NSWorkspace.shared.isVoiceOverEnabled else { return }
+    NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                         userInfo: [.announcement: s, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+}
+
 func lookUp() {
     close()
     shown += 1
     let mine = shown, mouse = NSEvent.mouseLocation
-    monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { _ in close() }
-    if config.closeAfter > 0 { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in close() } }
+    // a key closes the card; with VoiceOver on, only Escape does, so its keys can read it (a click, a scroll or the
+    // timer still close it)
+    monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { e in
+        if e.type == .keyDown, e.keyCode != 53, NSWorkspace.shared.isVoiceOverEnabled { return }
+        closeCard()  // (the type box, if open, gets its click-outside watch back)
+    }
+    if config.closeAfter > 0 { timer = Timer.scheduledTimer(withTimeInterval: config.closeAfter, repeats: false) { _ in closeCard() } }
     if !AXIsProcessTrusted() {  // only checked: the card's Allow asks macOS, a lookup never does
-        present(message("Lookup Word can't notice the keys or read the word you selected yet: it needs the permission macOS calls Accessibility. Click Allow: macOS asks you, and lets you turn it on. Then try again.", action: ("Allow…", "lookupword://open/accessibility")), at: nil)
+        let s = "Lookup Word can't notice the keys or read the word you selected yet: it needs the permission macOS calls Accessibility. Click Allow: macOS asks you, and lets you turn it on. Then try again."
+        announce(s)
+        present(message(s, action: ("Allow…", "lookupword://open/accessibility")), at: nil)
     } else if let (word, rect, around) = selection() {
         show(word, rect, around, mine)
     } else {
@@ -80,9 +98,13 @@ func readPointer(_ mouse: NSPoint, _ mine: Int) {
             } else { show(r.word, rect, r.around, mine) }
         }
         else if !CGPreflightScreenCaptureAccess() {
-            update(message("\(whyScreen)\n\nTo allow it, click Allow: macOS asks you, and lets you turn it on (it may ask to quit and reopen Lookup Word). Or select the word instead, then \(pressTwice).", action: ("Allow…", "lookupword://open/screen-recording")))
+            let s = "\(whyScreen)\n\nTo allow it, click Allow: macOS asks you, and lets you turn it on (it may ask to quit and reopen Lookup Word). Or select the word instead, then \(pressTwice)."
+            announce(s)
+            update(message(s, action: ("Allow…", "lookupword://open/screen-recording")))
         } else {
-            update(message("No word found under the mouse pointer.\n\n\(howSelect)\n\nOr: \(howPoint)"))
+            let s = "No word found under the mouse pointer.\n\n\(howSelect)\n\nOr: \(howPoint)"
+            announce(s)
+            update(message(s))
         }
     }
 }
@@ -203,6 +225,7 @@ final class Menu: NSObject {
 
     // the icon goes, and stays gone (menuBar false in the settings); opening the app again shows the settings
     @objc func hide() {
+        close()  // an open card's monitor, which the one below would replace and leak
         setSetting("menuBar", false)
         NSStatusBar.system.removeStatusItem(item)
         menu = nil
@@ -281,9 +304,14 @@ func uninstallApp(purge: Bool) -> Uninstalled {
     if purge {
         remove(Paths.support, "your settings and Lookup Word's own folder")
         remove(Paths.logs, "its logs")
+        remove(home.appendingPathComponent("Library/Caches/\(agentLabel)"), "its cache")
+        // the card's and the box's own preferences (sectionsCollapsed, typeBoxOrigin), kept by macOS
+        UserDefaults.standard.removePersistentDomain(forName: agentLabel); UserDefaults.standard.synchronize()
+        try? fm.removeItem(at: home.appendingPathComponent("Library/Preferences/\(agentLabel).plist"))  // (left empty)
+        r.removed.append("its preferences")
     }
     if Bundle.main.bundlePath.hasSuffix(".app") { remove(Bundle.main.bundleURL, "the app") }
-    if !purge { r.kept.append("Your settings stay in \(Paths.support.path).") }
+    if !purge { r.kept.append("Your settings stay in \(Paths.support.path), and its logs in \(Paths.logs.path).") }
     if let u = store.url, !(purge && u.path.hasPrefix(Paths.support.path + "/")) { r.kept.append("Your vocabulary stays at \(u.path).") }
     return r
 }
@@ -455,9 +483,10 @@ if let id = Bundle.main.bundleIdentifier {
 }
 // A copy opened outside the launch agent (macOS's Quit & Reopen after a permission is granted, Finder, Spotlight)
 // while the agent's job is loaded but stopped: launchd starts the job instead, and this copy quits. Left running, it
-// stays outside launchd, which neither restarts it nor lets the next install stop it (his launchctl list, 2026-11-02
-// 16:36: the job stopped, an "application." copy running). The job starts once this copy is gone, which a second's
-// wait covers, so its copy is not the one turned away above.
+// stays outside launchd, which neither restarts it nor lets the next install stop it (seen 2026-11-02: the job
+// stopped, an "application." copy running). The job starts once this copy is gone, which a second's wait covers, so
+// its copy is not the one turned away above. Only when the job runs this very copy: one moved elsewhere (dragged to
+// /Applications) would hand over to a job whose program is gone, and nothing would run.
 if isInstalledApp, ProcessInfo.processInfo.environment["LOOKUP_AGENT"] == nil,
    FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Library/LaunchAgents/\(agentLabel).plist") {
     let job = "gui/\(getuid())/\(agentLabel)"
@@ -467,10 +496,16 @@ if isInstalledApp, ProcessInfo.processInfo.environment["LOOKUP_AGENT"] == nil,
     if (try? query.run()) != nil {
         let text = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         query.waitUntilExit()
-        if query.terminationStatus == 0, !text.contains("state = running") {
+        let program = text.split(separator: "\n").lazy.map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { $0.hasPrefix("program = ") }.map { String($0.dropFirst("program = ".count)) }
+        let real = { (p: String) in URL(fileURLWithPath: p).resolvingSymlinksInPath().path }
+        let ours = program != nil && program.map(real) == Bundle.main.executablePath.map(real)
+        if query.terminationStatus == 0, !text.contains("state = running"), !ours {
+            log("the launch agent starts \(program ?? "another program"), not this copy: run install.sh again to start this one at login")
+        } else if query.terminationStatus == 0, !text.contains("state = running") {
             let start = Process()
             start.executableURL = URL(fileURLWithPath: "/bin/sh")
-            start.arguments = ["-c", "sleep 1; /bin/launchctl kickstart \(job)"]
+            start.arguments = ["-c", "sleep 1; exec /bin/launchctl kickstart \"$0\"", job]  // the label as an argument, never as shell
             if (try? start.run()) != nil {
                 log("opened outside the launch agent, whose job is stopped: it starts the job instead")
                 exit(0)
@@ -478,8 +513,25 @@ if isInstalledApp, ProcessInfo.processInfo.environment["LOOKUP_AGENT"] == nil,
         }
     }
 }
+// the log (launchd appends to it forever, and it holds the words looked up): over 1 MB, cut to its last 256 KB.
+// launchd opened it for appending, so what this copy writes next lands after the kept part.
+if let h = try? FileHandle(forUpdating: Paths.logs.appendingPathComponent("lookup.log")),
+   let size = try? h.seekToEnd(), size > 1 << 20 {
+    try? h.seek(toOffset: size - 256 << 10)
+    let tail = h.readDataToEndOfFile()
+    try? h.truncate(atOffset: 0); h.write(tail.drop { $0 != 10 }.dropFirst())  // from a whole line
+    try? h.close()
+}
 // a test copy (scripts/test-install.sh) runs without a menu bar icon or welcome window
 let quiet = ProcessInfo.processInfo.environment["LOOKUP_QUIET"] != nil
+// …and restarts on SIGUSR1, as the settings' Restart button does, so the test can check restart() under launchd
+var restartSignal: DispatchSourceSignal?
+if quiet {
+    signal(SIGUSR1, SIG_IGN)
+    let s = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+    s.setEventHandler { log("restart: asked by SIGUSR1"); restart() }
+    s.resume(); restartSignal = s
+}
 
 let app = NSApplication.shared
 DispatchQueue.main.async { for p in packs where p.lemmas != nil { _ = lemma("", p) } }  // read lemma lists at start, not on first use
@@ -488,8 +540,13 @@ watchKeys()
 registerTypeShortcut()
 var menu = !quiet && (config.menuBar || !AXIsProcessTrusted()) ? Menu() : nil  // shown while it cannot work, even when hidden
 // the icon kept up to date with the permission: back to the book once it is given (and gone again if the settings
-// hide it), a warning again if it is taken away
+// hide it), a warning again if it is taken away; and the key monitors set again once it is given, wherever it was
+// (the welcome window does this too, but only while it is open)
+var wasTrusted = AXIsProcessTrusted()
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
+    let trusted = AXIsProcessTrusted()
+    if trusted, !wasTrusted { watchKeys() }
+    wasTrusted = trusted
     if !AXIsProcessTrusted(), menu == nil, !quiet { menu = Menu() }
     if AXIsProcessTrusted(), !config.menuBar, let m = menu { NSStatusBar.system.removeStatusItem(m.item); menu = nil }
     menu?.refresh()

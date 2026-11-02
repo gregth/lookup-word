@@ -1,14 +1,31 @@
-# Builds Lookup Word on macOS for every push and pull request: the release build install.sh runs, and the debug one.
-# The dictionaries, permissions and launch agent need a real Mac session, so scripts/test-packs.sh and
-# scripts/test-install.sh stay local checks.
+# Builds Lookup Word on macOS for every push and pull request: the release build install.sh runs, and the debug one,
+# then runs the checks that need no dictionaries, permissions or launch agent. Those need a real Mac session, so
+# scripts/test-packs.sh and scripts/test-install.sh stay local checks.
 name: Build
 on:
   push:
   pull_request:
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - run: swift build -c release
       - run: swift build
+      # every pack's pack.json reads (a broken one drops its line), and the word picked from a reading
+      - name: Packs and closest word
+        run: |
+          set -euo pipefail
+          export LOOKUP_PACKS=$PWD/packs LOOKUP_QUIET=1 LOOKUP_SUPPORT=$RUNNER_TEMP/support LOOKUP_LOGS=$RUNNER_TEMP/logs
+          mkdir -p "$LOOKUP_SUPPORT"
+          codes=$(ls packs)
+          printf '{"languages": [%s], "store": {"type": "none"}}\n' "$(printf '"%s",' $codes | sed 's/,$//')" > "$LOOKUP_SUPPORT/config.json"
+          out=$(.build/debug/LookupWord --dictionaries)
+          echo "$out"
+          for c in $codes; do grep -q "^$c " <<<"$out" || { echo "pack $c did not load"; exit 1; }; done
+          if grep '^Settings:' <<<"$out"; then exit 1; fi
+          [[ $(.build/debug/LookupWord --closest a "a b") == a ]] || exit 1
+          [[ $(.build/debug/LookupWord --closest helo "say hello world") == hello ]] || exit 1
+          [[ $(.build/debug/LookupWord --closest zzz "abc def") == none ]] || exit 1

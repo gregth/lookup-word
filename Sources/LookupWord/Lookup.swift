@@ -62,6 +62,9 @@ func entry(_ raw: String, hint: String) -> Entry? {
     var bil: [String: String] = [:], mono: [String: String] = [:], bilX: [String: String] = [:]
     for p in others {
         bil[p.code] = define(w, in: p.bilingual)
+        // (a one-letter word: only its own entry, not one the letter is a symbol in, I's "iodine … jodium"; its own
+        // may be capitalised or numbered, "Y | waɪ |", "I1, i")
+        if w.count == 1, let t = bil[p.code], group(t, #"^([^\s|,\d]+)"#)?.lowercased() != w.lowercased() { bil[p.code] = nil }
         bilX[p.code] = ownEntry(w, bil[p.code], p)
         mono[p.code] = define(w, in: p.monolingual)
     }
@@ -73,6 +76,10 @@ func entry(_ raw: String, hint: String) -> Entry? {
         lang = p
     } else {
         // the text's language first, then English, then the others in the settings' order
+        // (a word in a language whose dictionaries are missing is English only as its own headword: Dutch huis is not
+        // "hui", house is house)
+        if let h = pack(hint), !h.isEnglish, [h.monolingual, h.bilingual].allSatisfy({ $0.map { dictionaries[$0] == nil } ?? true }),
+           en.map({ fold(replacing(headword($0), #"\d+$"#, "")) != fold(w) }) ?? true { return nil }
         let latin = packs.filter { $0.script == nil }
         let order = latin.filter { $0.code == hint && !$0.isEnglish } + [english] + latin.filter { !$0.isEnglish && $0.code != hint }
         guard let p = order.first(where: has) else { return nil }
@@ -92,14 +99,17 @@ func entry(_ raw: String, hint: String) -> Entry? {
     } ?? ""
     let title = { (name: String) in name.replacingOccurrences(of: " - ", with: " – ") }
     if lang.isEnglish {
+        // an entry that only names its base ("seen | siːn | verb past participle of see1"): the base's
+        if let base = en.flatMap({ group(String($0.prefix(120)), #"^[^|]+\|[^|]+\|\s*(?:verb |noun )?(?:past participle|past tense|plural) of (\p{L}+)"#) }),
+           fold(base) != fold(w), let e = entry(base, hint: "en") { return e }
+        // an irregular form's stub ("children … zie: child", "went ▶ go1 A, B", "▶ plural of child"): the headword's entry
+        if fold(word) != fold(w) {
+            for p in others where (bil[p.code]?.count ?? 0) < 120 { bil[p.code] = define(word, in: p.bilingual) ?? bil[p.code] }
+        }
         // each other language from its X - English entry for the English word (its verb part, for a verb)
         let verb = isVerb(w, english, en)
         let noun = en.map { matches($0, #"^[^|]+\|[^|]+\|\s*noun\b"#) } ?? false  // Oxford's first part of speech
-        // Oxford's first verb sense takes no object: "[no object]" before any "[with object]"
-        let intransitive = verb && (en.map { e in
-            guard let no = e.range(of: "[no object]") else { return false }
-            return e.range(of: "[with object]").map { no.lowerBound < $0.lowerBound } ?? true
-        } ?? false)
+        let intransitive = verb && firstSenseIntransitive(en)
         let tr = others.map { p -> (String, String) in
             guard let t = bil[p.code], englishSide(t, in: p.bilingual) else { return (p.code, "") }
             // (the entries searched by the dictionary's headword: "stopped" is stop's)
@@ -130,7 +140,13 @@ func entry(_ raw: String, hint: String) -> Entry? {
         records(stem, in: lang.bilingual).filter { $0 != e && !englishSide($0, in: lang.bilingual) && group($0, numbered) == stem &&
             !matches(String($0.prefix(70)), #"\((?:informal|colloquial|slang|vulgar|dated|Latin America|Spain|Mexico|Chile|Argentina)"#) }
     } } ?? []
-    var inEnglish = senses(b, from: lang, others: homographs).enumerated().map { i, sense in
+    // a noun homograph first and an adjective one after (καλός1 nm "good guy", καλός2 adj "good"): the adjective leads,
+    // as the word's everyday sense
+    let adj = b.flatMap { e in matches(String(e.prefix(40)), #"^[\p{L}'-]+ ?1 n[mfn]?\b"#)
+        ? homographs.firstIndex { matches(String($0.prefix(40)), #"^[\p{L}'-]+ ?\d+ adj\b"#) } : nil }
+    let lead = adj.map { homographs[$0] } ?? b
+    let rest = adj.map { i in [b!] + homographs.enumerated().filter { $0.offset != i }.map(\.element) } ?? homographs
+    var inEnglish = senses(lead, from: lang, others: rest).enumerated().map { i, sense in
         let items = (lang.stripHints == true ? withoutHints(sense, lang) : sense).components(separatedBy: ", ").filter { i == 0 || !shown.contains($0.lowercased()) }
         items.forEach { shown.insert($0.lowercased()) }
         return items.joined(separator: ", ")
@@ -138,9 +154,9 @@ func entry(_ raw: String, hint: String) -> Entry? {
     // a word whose entry opens with uses and examples, not a translation ("aller A auxiliary verb … je vais partir
     // I'm leaving"): the pack says it
     if let t = lang.translations?[word.lowercased()] { inEnglish = t }
-    let verb = isVerb(word, lang, lang.script == nil ? b : bil[lang.code])
+    let verb = isVerb(word, lang, lang.script == nil ? lead : bil[lang.code])
     // a noun in its own dictionary (boek: "znw boek"), so the English word's noun part is the one to translate
-    let noun = !verb && (b.map(opensAsNoun) ?? false), describing = !verb && (b.map(opensAsDescribing) ?? false)
+    let noun = !verb && (lead.map(opensAsNoun) ?? false), describing = !verb && (lead.map(opensAsDescribing) ?? false)
     let tr = [("en", inEnglish)] + others.filter { $0.code != lang.code }.map { p in
         (p.code, viaSenses(inEnglish, in: p, verb: verb, noun: noun, describing: describing))
     }

@@ -23,7 +23,9 @@
       ["(\\s1(?: (?:\\([^)]*\\)|uncountable|countable|and))*) a (?=\\S)", "$1 "],
       ["\\s/\\s[^(▸/]*\\((?:feminine|masculine)\\)", ""],
       ["([›»][^‹«▸]*?\\p{L}[^‹«▸]*?)\\s*[‹«][^›»]*[›»]", "$1 ▸"],
-      ["[‹«][^›»]*[›»]\\s*", ""]
+      ["[‹«][^›»]*[›»]:?\\s*", ""],
+      ["(?<!\\p{L})(\\p{L}+) \\1(?!\\p{L})", "$1"],
+      ["(?<=\\p{Ll}) (?=\\p{Ll}+ \\((?:mainly |especially )?(?:Latin America|Spain|Mexico|River Plate|Southern Cone|Andes|Caribbean)\\b)", ", "]
     ]
   }
 }

@@ -16,16 +16,19 @@
   "verb": { "entryPattern": "\\s(?:transitive|intransitive|auxiliary|pronominal|impersonal) verb\\b", "prefix": 800 },
   "verbLabels": ["transitive verb", "intransitive verb", "modal verb", "auxiliary verb", "verb"],
   "stripHints": true,
-  "translations": {"aller": "to go", "être": "to be", "avoir": "to have", "devoir": "must, to have to, to owe", "dans": "in, inside"},
+  "translations": {"aller": "to go", "être": "to be", "avoir": "to have", "devoir": "must, to have to, to owe", "dans": "in, inside", "le": "the", "la": "the", "les": "the"},
   "gloss": {
     "labels": ["formal", "literal", "humorous", "informal", "figurative", "A", "B", "C", "D", "masculine", "feminine", "noun", "adjective", "invariable", "transitive", "intransitive", "auxiliary", "pronominal", "verb", "adverb", "plural"],
     "cuts": ["before n"],
+    "trailing": ["informal", "formal", "literal", "figurative", "humorous", "euphemistic", "pejorative", "dated", "slang", "US", "British"],
     "variants": [
+      ["\\|\\s*(?:A )?(?:(?:in)?definite article|contraction)\\s", "| "],
+      ["(?<=\\s\\d )pl \\p{Ll}+(?: \\p{Ll}+)?\\s(?=\\p{Lu}|literal\\b|figurative\\b)", ""],
       ["(\\|[^|]*\\|)\\s*\\p{Lu}[^▸|]{40,}?\\.\\s*(?=(?:A )?(?:(?:auxiliary|transitive|intransitive|pronominal|impersonal) verb|(?:masculine|feminine) noun|preposition|adjective|adverb|determiner|pronoun|conjunction)\\b)", "$1 "],
       ["\\|\\s*A adjective invariable .*?\\sB (?=(?:masculine|feminine) noun)", "| "],
       ["\\|\\s*A masculine noun .*?\\sB (?=(?:transitive|intransitive) verb)", "| "],
       ["\\|\\s*A auxiliary verb .*?\\sB (?=(?:transitive|intransitive) verb)", "| "],
-      ["(?<=[\\d;)] )(?:(?:Accountancy|Administration|Advertising|Aerospace|Agriculture|Anatomy|Anthropology|Archaeology|Architecture|Art|Astrology|Astronomy|Audio|Aviation|Banking|Bible|Biology|Botany|Business|Chemistry|Cinema|Clothing|Computing|Construction|Cooking|Commerce|Gardening|Leisure|Marketing|Cosmetics|Culinary|Dance|Dentistry|Ecology|Economics|Education|Electricity|Electronics|Engineering|Entomology|Equestrianism|Fashion|Finance|Fishing|Forestry|Games|Gastronomy|Genetics|Geography|Geology|Geometry|Heraldry|History|Horticulture|Hunting|Industry|Insurance|Journalism|Law|Linguistics|Literature|Logic|Management|Mathematics|Mechanics|Medicine|Meteorology|Military|Mining|Motor Vehicles|Music|Mythology|Nautical|Nuclear Physics|Optics|Ornithology|Pharmacology|Philately|Philosophy|Photography|Physics|Physiology|Politics|Post|Printing|Psychiatry|Psychology|Publishing|Radio|Railways|Real Estate|Religion|School|Science|Sewing|Social Sciences|Sport|Statistics|Stock Exchange|Taxation|Technology|Telecommunications|Television|Textiles|Theatre|Tourism|Transport|Turf|University|Veterinary Medicine|Wine|Zoology)(?:, | ))+(?=[\\p{Ll}(\\[])", ""],
+      ["(?<=[\\d;)] )(?:(?:Accountancy|Administration|Advertising|Aerospace|Agriculture|Anatomy|Anthropology|Archaeology|Architecture|Art|Astrology|Astronomy|Audio|Aviation|Banking|Bible|Biology|Botany|Business|Chemistry|Cinema|Clothing|Computing|Construction|Cooking|Commerce|Gardening|Leisure|Marketing|Cosmetics|Culinary|Dance|Dentistry|Ecology|Economics|Education|Electricity|Electronics|Engineering|Entomology|Equestrianism|Fashion|Finance|Fishing|Forestry|Games|Gastronomy|Genetics|Geography|Geology|Geometry|Heraldry|History|Horticulture|Hunting|Industry|Insurance|Journalism|Law|Linguistics|Literature|Logic|Management|Mathematics|Mechanics|Medicine|Meteorology|Military|Mining|Motor Vehicles|Music|Mythology|Nautical|Nuclear Physics|Optics|Ornithology|Pharmacology|Philately|Philosophy|Photography|Physics|Physiology|Politics|Post|Printing|Psychiatry|Psychology|Publishing|Radio|Railways|Real Estate|Religion|School|Science|Sewing|Social Sciences|Sport|Statistics|Stock Exchange|Taxation|Technology|Telecommunications|Television|Textiles|Theatre|Tourism|Transport|Turf|University|Veterinary Medicine|Wine|Zoology)(?:, | ))+(?=[\\p{Ll}(\\[]|\\p{Lu}\\p{Ll}+ [mf]\\b)", ""],
       ["(?<!adjective|noun|verb|adverb|invariable)(?<=\\p{Ll}) (?:US|British|literary|dated|slang|pejorative)(?=[\\s,;])", ""],
       ["(?<=\\p{L}) (?:m|f|mf|mpl|fpl|nm|nf|uncountable)(?: inv)?(?=[\\s,;.)]|$)", ""],
       ["\\s*;", ","]

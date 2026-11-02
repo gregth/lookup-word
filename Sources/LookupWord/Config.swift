@@ -10,6 +10,7 @@ struct StoreConfig: Codable {
     init() {}
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
+        try unknownKeys(d, ["type", "path", "saveDate"], in: "store")
         type = c.lenient(String.self, .type, in: "store")?.lowercased() ?? type
         if !["markdown", "json", "none"].contains(type) { warn("store.type \"\(type)\" is not markdown, json or none: using markdown"); type = "markdown" }
         path = c.lenient(String.self, .path, in: "store")
@@ -39,6 +40,7 @@ struct Config: Codable {
     // each key on its own: a key with a wrong value keeps its default (and a warning), never the whole file
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
+        try unknownKeys(d, ["languages", "hotkey", "typeShortcut", "menuBar", "closeAfter", "debug", "store"], ignoring: ["screenReading"])
         languages = c.lenient([String].self, .languages)?.map { $0.lowercased() } ?? languages
         hotkey = c.lenient(String.self, .hotkey)?.lowercased() ?? hotkey
         typeShortcut = c.lenient(String.self, .typeShortcut) ?? typeShortcut  // (case kept: "key:…:L")
@@ -53,6 +55,21 @@ struct Config: Codable {
 // when their words are missing.
 var configWarnings: [String] = []
 func warn(_ s: String) { configWarnings.append(s); log("config.json: " + s) }
+
+// a key this version does not read ("file" for "path", "Store"): a warning, or the words go to the default file unseen.
+// screenReading is from versions with a switch for it.
+struct AnyKey: CodingKey {
+    var stringValue: String
+    var intValue: Int? { nil }
+    init(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
+}
+func unknownKeys(_ d: Decoder, _ known: [String], ignoring: [String] = [], in parent: String? = nil) throws {
+    for key in try d.container(keyedBy: AnyKey.self).allKeys.map(\.stringValue).sorted() where !(known + ignoring).contains(key) {
+        let near = known.first { $0.lowercased() == key.lowercased() }
+        warn("unknown key \"\((parent.map { $0 + "." } ?? "") + key)\" ignored; " + (near.map { "did you mean \"\($0)\"?" } ?? "the keys here are " + known.joined(separator: ", ")))
+    }
+}
 
 extension KeyedDecodingContainer {
     func lenient<T: Decodable>(_ type: T.Type, _ key: Key, in parent: String? = nil) -> T? {

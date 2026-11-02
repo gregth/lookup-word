@@ -16,6 +16,7 @@ final class WelcomeModel: ObservableObject {
             if !self.screen, CGPreflightScreenCaptureAccess() { self.screen = true; gotAny() }
         }
     }
+    deinit { timer?.invalidate() }  // (the run loop keeps a timer going after its model)
 }
 
 struct PermissionRow: View {
@@ -64,6 +65,13 @@ struct WelcomeView: View {
             Text(typeShortcut.id == "none" ? "You can also type a word into a box, from the menu bar's Look Up a Word…: that needs no permission."
                  : "You can also press \(typeShortcut.symbol) anywhere to type a word into a box: that needs no permission.")
                 .font(.callout).fixedSize(horizontal: false, vertical: true)
+            // the languages: with English alone the card has no translation, and one whose dictionaries are missing has none
+            // for it, so a new user learns where to turn them on
+            HStack(alignment: .firstTextBaseline) {
+                Text(languagesNote).font(.callout).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Settings…") { showSettings() }
+            }
             Text("When you click Allow, macOS asks you; choose Open System Settings there, turn on the switch next to Lookup Word, then come back here. This window updates by itself. For pointing, macOS may ask to quit and reopen Lookup Word.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
@@ -81,6 +89,13 @@ struct WelcomeView: View {
         .frame(width: 500)
         .background(Color(nsColor: .windowBackgroundColor))
     }
+}
+
+var languagesNote: String {
+    guard !others.isEmpty else { return "Only English is on. Turn on your other languages in Settings, to see each word in them too." }
+    let missing = others.filter { !missingDictionaries($0).isEmpty }.map(\.name)
+    return "Your languages: " + packs.map(\.name).joined(separator: ", ") + ". Change them in Settings."
+        + (missing.isEmpty ? "" : " " + missing.joined(separator: ", ") + (missing.count == 1 ? " needs its dictionaries" : " need their dictionaries") + ": enable them there.")
 }
 
 // the app's own icon: from its bundle, or from the source tree's docs/ for a copy run from the build folder
@@ -104,15 +119,20 @@ func showWelcome() {
     let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 360), styleMask: [.titled, .closable], backing: .buffered, defer: false)
     w.title = "Lookup Word"
     w.isReleasedWhenClosed = false
-    w.contentView = NSHostingView(rootView: WelcomeView(model: model) { welcomeWindow?.close(); welcomeWindow = nil })
+    w.contentView = NSHostingView(rootView: WelcomeView(model: model) { welcomeWindow?.close() })
     w.setContentSize(w.contentView!.fittingSize)
     w.center()
     w.makeKeyAndOrderFront(nil)
     welcomeWindow = w
+    // closed, by Done, Later or the close button: the watch stops, so a permission given later doesn't bring it back
+    onClose(w) {
+        model.timer?.invalidate()
+        if welcomeWindow === w { welcomeWindow = nil }
+    }
     // once Accessibility is allowed: the shortcut's monitors again, since those added before it may not see other
     // apps' keys
     // and each permission given brings the window back to the front: System Settings covered it, so it seemed to have
-    // gone away (his report, 2026-11-02) when it was the tick and the next step he needed to see
+    // gone away when it was the tick and the next step to see
     model.watch({ watchKeys() }, {
         NSApp.activate(ignoringOtherApps: true)
         welcomeWindow?.makeKeyAndOrderFront(nil)

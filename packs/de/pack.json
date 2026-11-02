@@ -15,7 +15,9 @@
   "spellChecker": "de",
   "verb": { "entryPattern": "\\sverb\\b", "prefix": 90 },
   "verbLabels": ["transitive", "intransitive", "reflexive", "auxiliary", "modal"],
+  "translations": {"der": "the", "die": "the", "das": "the"},
   "gloss": {
+    "trailing": ["attrib", "same", "informal", "literal", "figurative"],
     "labels": ["A", "B", "neuter", "masculine", "feminine", "plural", "noun", "adjective", "adverb", "transitive",
                "intransitive", "reflexive", "auxiliary", "modal", "verb", "irregular", "or", "preposition",
                "conjunction", "pronoun", "interjection"],
@@ -32,8 +34,9 @@
       [",? 2\\.Part\\. \\p{L}+", ""],
       [" to do sth\\b", ""],
       ["([›»][^‹«▸]*?\\p{L}[^‹«▸]*?)\\s*[‹«][^›»]*[›»]", "$1 ▸"],
-      ["[‹«][^›»]*[›»]\\s*", ""],
+      ["[‹«][^›»]*[›»]:?\\s*", ""],
       ["\\((Mask|Fem|Neutr)\\.\\)/\\s*", ", "],
+      ["(?<=\\s\\d )(?:attrib\\.|in comb\\.|in (?:sing\\.|pl\\.)(?: or pl\\.)?)\\s*", ""],
       [" ?\\b(Sg|sing|pl|Pl)\\.(?=[\\s,;])", ""],
       [";(?= )", ","]
     ]

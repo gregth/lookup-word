@@ -14,6 +14,7 @@ struct GlossRules: Decodable {
     var labels: [String]?  // grammar labels dropped from the start of a translation (adj, znw, το)
     var inner: [String]?  // labels dropped anywhere in a translation (hulpww, aux)
     var cuts: [String]?  // a translation stops at these (zie:, DERIVATIVES)
+    var trailing: [String]?  // labels dropped from the end of a translation's item, and an item that is only one (informal, attrib)
     var grammarNotes: [String]?  // abbreviations ending in "." that come before the meaning (αόρ, μτχ)
     var variants: [[String]]?  // [regex, replacement] applied first, e.g. a spelling variant after the headword
 }
@@ -106,12 +107,13 @@ var others: [Pack] { packs.filter { !$0.isEnglish } }
 // written for one dictionary's layout, so those are English's and that pack's own: turning a language on never changes
 // how another language's entries are rewritten.
 struct GlossRuleSet {
-    var labels: Set<String>, inner: Set<String>, cuts: [String], notes: [String], variants: [(String, String)]
+    var labels: Set<String>, inner: Set<String>, cuts: [String], trailing: [String], notes: [String], variants: [(String, String)]
     init(_ ps: [Pack]) {
         let g = ps.compactMap(\.gloss), all = packs.compactMap(\.gloss)
         labels = Set(all.flatMap { $0.labels ?? [] })
         inner = Set(all.flatMap { $0.inner ?? [] })
         cuts = ["▸", "▶", "•"] + g.flatMap { $0.cuts ?? [] }
+        trailing = g.flatMap { $0.trailing ?? [] }
         notes = g.flatMap { $0.grammarNotes ?? [] }
         variants = g.flatMap { $0.variants ?? [] }.compactMap { $0.count == 2 ? ($0[0], $0[1]) : nil }
     }

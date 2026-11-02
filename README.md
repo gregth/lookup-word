@@ -66,7 +66,7 @@ lands in my vocabulary file without my doing anything. What I look up while work
   one language's words into Anki cards (the word on the front, its translations on the back):
 
   ```bash
-  awk -v want=Dutch '/^## /{lang=substr($0,4);next} lang!=want{next} /^\| Word /{n=split($0,head,"|");next} /^\| \*\*/{gsub(/\*\*/,"");split($0,c,"|");back="";for(i=3;i<n;i++){v=c[i];gsub(/^ +| +$/,"",v);h=head[i];gsub(/^ +| +$/,"",h);if(v!="")back=back (back==""?"":"<br>") h ": " v};w=c[2];gsub(/^ +| +$/,"",w);print w "\t" back}' "$HOME/Library/Application Support/Lookup Word/Vocabulary.md" > dutch.txt
+  awk -v want=Dutch '/^## /{lang=substr($0,4);next} lang!=want{next} /^\| Word /{n=split($0,head,"|");next} /^\| \*\*/{gsub(/\*\*/,"");split($0,c,"|");back="";for(i=3;i<n;i++){v=c[i];gsub(/^ +| +$/,"",v);h=head[i];gsub(/^ +| +$/,"",h);if(v!=""&&h!="Added")back=back (back==""?"":"<br>") h ": " v};w=c[2];gsub(/^ +| +$/,"",w);print w "\t" back}' "$HOME/Library/Application Support/Lookup Word/Vocabulary.md" > dutch.txt
   ```
 
   Then in Anki: **File → Import**, choose `dutch.txt`, field separator **Tab**, and tick **Allow HTML in fields**.
@@ -83,8 +83,8 @@ lands in my vocabulary file without my doing anything. What I look up while work
 - Apple's Command Line Tools, to build it: `xcode-select --install` (the full Xcode is not needed).
 - The dictionaries for your languages. Lookup Word's Settings window turns them on for you: **Enable** next to a
   language, and macOS downloads its dictionaries in a minute or two. By hand: open Dictionary, choose **Dictionary →
-  Settings…** (⌘,) and tick them; for the default languages that is *Oxford Dictionary of English*, *Dutch*,
-  *Dutch - English*, *Greek* and *Greek - English*.
+  Settings…** (⌘,) and tick them: *Oxford Dictionary of English*, plus each language's own and its X - English
+  dictionary (*Dutch* and *Dutch - English*, say).
 
 ## Install
 
@@ -96,7 +96,7 @@ cd lookup-word
 
 The script builds the app into `~/Applications/Lookup Word.app`, starts it at login, and lists which of your languages'
 dictionaries are ready. Lookup Word then opens a welcome window with its two permissions, each with a button to the
-setting:
+setting, and the languages that are on:
 
 - **Accessibility**, required: to notice the shortcut and read the selection.
 - **Screen Recording**, optional: to point at a word without selecting it. You can skip it; pointing at a word later
@@ -106,11 +106,16 @@ Switch Lookup Word on, and the window notices by itself:
 
 ![The welcome window: Accessibility (required) and Screen Recording (optional), each with a button to its setting](docs/welcome.png)
 
+The languages on at first are English and those of your Mac's preferred languages (System Settings → General →
+Language & Region) that have a pack. If your Mac is set to English only, the card has no translations yet: turn on
+your other languages in **Settings… → Languages** (the welcome window and the card link there).
+
 Lookup Word isn't signed with an Apple Developer ID, so there is no download to install, only this build from source.
 macOS doesn't quarantine an app built on your own Mac, so it opens without a Gatekeeper warning. To keep your
 permissions across rebuilds, create a self-signed code-signing certificate named "Lookup Word Signing" (Keychain Access
 → Certificate Assistant → Create a Certificate…, Self Signed Root, Code Signing) before running the script, or pass
-your own with `LOOKUP_SIGN_IDENTITY`.
+your own with `LOOKUP_SIGN_IDENTITY` (remembered for the next install and update). Either way the app is signed with
+the hardened runtime.
 
 ### Update
 
@@ -119,18 +124,22 @@ cd lookup-word
 ./update.sh
 ```
 
-`update.sh` pulls the latest version and reinstalls it; your settings and words stay as they are. Each new build is a
+`update.sh` pulls the latest version and reinstalls it (it needs a git clone, not a ZIP download); your settings and
+words stay as they are. Each new build is a
 new app to macOS unless it is signed with the same certificate, so create the "Lookup Word Signing" certificate once
 (see above) to keep your permissions across updates; without it, the welcome window asks for them again.
 
 ### Uninstall
 
-To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh` (add `--purge` to delete your settings and the vocabulary in its own folder too). A vocabulary file you keep elsewhere is never deleted.
+To remove it: menu bar icon → **Uninstall Lookup Word…**, or `./uninstall.sh`. Your settings, backups and logs stay;
+tick **Also delete my settings…**, or add `--purge`, to delete them too, with the vocabulary in Lookup Word's own
+folder and its preferences and cache. A vocabulary file you keep elsewhere is never deleted.
 
 ## Use
 
 There are three ways to look up a word. The first two end the same way: press the **⌥ Option** key twice, quickly,
-and the card appears; the third is a box to type into. To close it, click anywhere else or press any key; it also closes by itself after 30 seconds.
+and the card appears; the third is a box to type into. To close it, click anywhere else or press any key (with VoiceOver on, Escape, so its keys can read the card, which
+VoiceOver announces); it also closes by itself after 30 seconds.
 
 ### 1. Select the word
 
@@ -157,7 +166,7 @@ and the card appears; the third is a box to type into. To close it, click anywhe
 
 ![Pressing ⌃⌘L, typing "liep" in the box that opens and pressing Return, and the card for "lopen" below the box](docs/mode-type.gif)
 
-- Press **⌃⌘L** (Control, Command and L together; in Settings you can record any other) in any app, or choose **Look Up a Word…** in the menu bar menu.
+- Press **⌃⌘L** (Control, Command and L together; in Settings you can record any other with two of ⌃, ⌥ and ⌘) in any app, or choose **Look Up a Word…** in the menu bar menu.
   A box opens near the top of the screen: type the word, in any of your languages, and press Return. Its card
   shows below the box, and the box keeps the keyboard, so you can type the next word straight away.
 - **Escape** closes the card; press it again to close the box. A click anywhere else closes both.
@@ -173,8 +182,10 @@ and the card appears; the third is a box to type into. To close it, click anywhe
 
 - **Click the speaker** next to a word to hear it, in its own language's voice.
 - **Click a language's code** (NL, EL…) to jump to that language's dictionary entry further down the card.
-- **Click a dictionary's name** (▾) to fold its entry away, or **Collapse all** at the card's foot to fold them all;
-  the cards after keep it that way until you choose **Expand all**.
+- **Click a dictionary's name** (▾) to fold its entry away, or **Collapse all**, at the right above the entries, to
+  fold them all; the cards after keep it that way until you choose **Expand all**.
+- **A language whose dictionaries are missing** gets a muted line instead of its translation, with a link to Settings,
+  where **Enable** turns them on.
 - **Read more** at the foot links to that language's dictionaries online: Cambridge, Merriam-Webster, Woorden.org,
   Τριανταφυλλίδη, Larousse, RAE, Duden, DWDS, WordReference and Wiktionary, two or three per language.
 - **The menu bar icon** opens your vocabulary and the settings, and uninstalls the app.
@@ -185,19 +196,23 @@ Menu bar icon → **Settings…**:
 
 ![The settings window: shortcut, the word under the pointer, menu bar icon, card timeout, languages, and where words are saved](docs/settings.png)
 
-**Save and Restart** applies the changes. They are stored in `~/Library/Application Support/Lookup Word/config.json`,
-written with the defaults on first launch. After editing that file by hand, choose **Restart Lookup Word** in
-the menu. Every key is optional.
+**Save and Restart** applies the changes. **Restore Defaults** puts a new user's settings in the window (applied by
+Save and Restart too); where and how words are saved stays as it is. The settings are stored in
+`~/Library/Application Support/Lookup Word/config.json`, written with the defaults on first launch, except **Show the
+card's dictionaries expanded**, which macOS keeps with the card's Collapse all. After editing that file by hand, choose
+**Restart Lookup Word** in the menu. Every key is optional; a key it doesn't know (a misspelling) is ignored, with a
+warning on the card. A file that isn't valid JSON leaves the defaults in force and saves no words until you fix it: the
+Settings window says so and won't save over it.
 
 | Key | Default | What it does |
 |---|---|---|
 | `languages` | English, plus your Mac's preferred languages that have a pack | The language packs to use, from [packs/](packs/). English is the pivot and is always on. |
 | `hotkey` | `"option"` | The key to press twice: `option`, `control`, `command` or `shift`. |
-| `typeShortcut` | ⌃⌘L | The type-a-word box's shortcut: any key with ⌃, ⌥ or ⌘. Set it in **Settings…**: click the shortcut, then press the keys you want (Escape cancels); **Off** turns it off. Stored as `"key:<code>:<modifiers>:<key>"`, or `"none"`. |
+| `typeShortcut` | ⌃⌘L | The type-a-word box's shortcut: any key with two of ⌃, ⌥ and ⌘ (with ⌘ or ⌥ alone it would take that key from every app). Set it in **Settings…**: click the shortcut, then press the keys you want (Escape cancels); the ⓧ next to it turns it off, and it then reads **Record Shortcut**. Stored as `"key:<code>:<modifiers>:<key>"`, or `"none"`. |
 | `menuBar` | `true` | Show the menu bar icon. **Hide Menu Bar Icon** in its menu sets this to `false`. With the icon hidden, open Lookup Word again from Applications for its settings. |
 | `closeAfter` | `30` | Seconds before the card closes by itself; `0` keeps it open until a click or a key. |
 | `debug` | `false` | Save each screen reading as `capture.png` in the support folder and log its coordinates. |
-| `store` | Markdown | `{"type": "markdown" \| "json" \| "none", "path": "…", "saveDate": false}`: where looked-up words go, see below. |
+| `store` | Markdown | `{"type": "markdown" \| "json" \| "none", "path": "…", "saveDate": false}`: where looked-up words go, see below. A relative `path` is in your home folder. |
 
 ### Where words are saved
 
@@ -205,12 +220,13 @@ Saving is optional: in **Settings… → Save words to**, choose a Markdown file
 
 - **Markdown:** one `## English`, `## Dutch`… section per language, each a table. A language's section is added at the
   end of the file the first time you look up a word in it; after that, each new word is one more row. Nothing else in
-  the file changes, so you can keep it in a notes vault (Obsidian, Logseq…) and write your own notes around the
+  the file changes (but a new language's column, below), so you can keep it in a notes vault (Obsidian, Logseq…) and write your own notes around the
   tables. Here is [a file after nine lookups](docs/sample-vocabulary.md), as a notes app shows it:
 
   ![A vocabulary file with English, Dutch and Greek tables: each word with its meaning or English, and its translations](docs/vocabulary.png)
 
-- **JSON:** a list of `{word, language, meaning, translations}`, for your own scripts.
+- **JSON:** a list of `{word, language, meaning, translations}`, for your own scripts. Keys you add to a word (notes,
+  tags) are kept (a number may be rewritten at full precision: 0.1 as 0.10000000000000001).
 - **Also save the date and time** (off by default): an **Added** column, or an `added` field in JSON.
 
 A language you add in Settings, or Added once you turn it on, gets its own column at the end of an existing table on
@@ -218,8 +234,9 @@ the next save, with an empty cell in the rows already there. Columns you reorder
 working: rows follow the table's own header.
 
 A save never writes over a file another app (a sync client, an editor) is in the middle of saving. It skips a read
-that comes back empty, unreadable or much shorter than after the last save, writes only if the file still holds what
-it read, writes through a temporary file renamed over it, and keeps the last 30 saved versions in `backups/`.
+that comes back empty (but a note that stays empty before its first save), unreadable or much shorter than after the last save, writes only if the file still holds what
+it read, writes through a temporary file renamed over it, and keeps the last 30 saved versions in `backups/`, in a
+folder per vocabulary file.
 
 ### Where things are
 
@@ -229,19 +246,21 @@ it read, writes through a temporary file renamed over it, and keeps the last 30 
 | Settings | `~/Library/Application Support/Lookup Word/config.json` |
 | Your words (default) | `~/Library/Application Support/Lookup Word/Vocabulary.md` (or `vocabulary.json`), unless you choose a file |
 | Backups of the words file | `~/Library/Application Support/Lookup Word/backups/` |
-| Log | `~/Library/Logs/Lookup Word/lookup.log` |
+| Log | `~/Library/Logs/Lookup Word/lookup.log`: it lists the words you look up, also with **Save words to: Nowhere**. Over 1 MB, Lookup Word cuts it to its last 256 KB when it starts. |
 | Start at login | `~/Library/LaunchAgents/io.github.gregth.lookup-word.plist` |
 
 ## Languages
 
-| Language | On by default | Tested by |
-|---|---|---|
-| 🇬🇧 English | always: the others translate through it | its author's daily use |
-| 🇳🇱 Dutch | yes | its author's daily use |
-| 🇬🇷 Greek | yes | its author, a native speaker |
-| 🇫🇷 French | no: turn it on in Settings | **community**: test words only, no native speaker yet |
-| 🇩🇪 German | no: turn it on in Settings | **community**: test words only, no native speaker yet |
-| 🇪🇸 Spanish | no: turn it on in Settings | **community**: test words only, no native speaker yet |
+| Language | Tested by |
+|---|---|
+| 🇬🇧 English, always on: the others translate through it | its author's daily use |
+| 🇳🇱 Dutch | its author's daily use |
+| 🇬🇷 Greek | its author, a native speaker |
+| 🇫🇷 French | **community**: test words only, no native speaker yet |
+| 🇩🇪 German | **community**: test words only, no native speaker yet |
+| 🇪🇸 Spanish | **community**: test words only, no native speaker yet |
+
+A language is on at first when your Mac uses it; turn the others on in **Settings… → Languages**.
 
 Each language is a folder in [packs/](packs/): a `pack.json` that names its dictionaries, voice and grammar labels,
 plus an optional lemma list. A language can join when Dictionary.app has a dictionary between it and English. To add
@@ -272,7 +291,10 @@ The command lists the available dictionaries and which ones each language still 
 
 - `--text WORD [en|nl|el]`: prints the entry it would show, without the screen.
 - `--pointer "SOME TEXT" [size] [bold] [dark] [spread]`: tests screen reading on rendered text.
-- Logs go to `~/Library/Logs/Lookup Word/lookup.log`.
+- Logs go to `~/Library/Logs/Lookup Word/lookup.log`. It lists the words you looked up, and a selection it found no
+  entry for when it looks like a word (anything else, such as a password, only by its length): before attaching it to an issue, keep only the lines about the
+  problem.
+- A security problem: report it privately, as [SECURITY.md](SECURITY.md) says, not in a public issue.
 
 ## How it works
 

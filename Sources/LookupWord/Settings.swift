@@ -7,15 +7,16 @@ import SwiftUI
 final class SettingsModel: ObservableObject {
     struct Language: Identifiable { var id: String { code }; var code: String; var name: String; var missing: [String]; var ids: [String] }
 
-    @Published var languages: Set<String>
-    @Published var hotkey: String
-    @Published var typeKey: String
-    @Published var menuBar: Bool
-    @Published var closeAfter: Double
-    @Published var storeType: String
-    @Published var storePath: String
-    @Published var saveDate: Bool
-    @Published var collapsed: Bool  // the card's dictionaries start closed: its Collapse all, kept in UserDefaults
+    @Published var languages: Set<String> = []
+    @Published var hotkey = ""
+    @Published var typeKey = ""
+    @Published var menuBar = false
+    @Published var closeAfter = 0.0
+    @Published var storeType = ""
+    @Published var storePath = ""
+    @Published var saveDate = false
+    @Published var collapsed = false  // the card's dictionaries start closed: its Collapse all, kept in UserDefaults
+    @Published var broken = false  // config.json is not JSON: Save would replace it with what the window shows
     @Published var enabling: Set<String> = []  // languages whose dictionaries are downloading
     let available: [Language]
     struct Snapshot: Equatable { var languages: Set<String>; var hotkey: String; var typeKey: String; var menuBar: Bool; var closeAfter: Double; var storeType, storePath: String; var saveDate: Bool; var collapsed: Bool }
@@ -23,8 +24,18 @@ final class SettingsModel: ObservableObject {
     var saved = Snapshot(languages: [], hotkey: "", typeKey: "", menuBar: false, closeAfter: 0, storeType: "", storePath: "", saveDate: false, collapsed: false)
 
     init() {
-        // what the file says now (it may have changed since launch), falling back to the settings in force
-        let file = (try? Data(contentsOf: Paths.config)).flatMap { try? JSONDecoder().decode(Config.self, from: $0) } ?? config
+        available = availablePacks.compactMap(loadPack).map { p in
+            Language(code: p.code, name: p.name, missing: missingDictionaries(p), ids: p.dictionaryIds ?? [])
+        }.sorted { ($0.code == "en" ? "" : $0.name) < ($1.code == "en" ? "" : $1.name) }
+        load()
+    }
+    // what the file says now (it may have changed since launch), falling back to the settings in force; a file that
+    // is not JSON is flagged, not taken for the defaults
+    func load() {
+        let data = (try? Data(contentsOf: Paths.config)).flatMap { d in d.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }) ? nil : d }
+        let decoded = data.flatMap { try? JSONDecoder().decode(Config.self, from: $0) }
+        broken = data != nil && decoded == nil
+        let file = decoded ?? config
         languages = Set(file.languages + ["en"])
         hotkey = ["option", "control", "command", "shift"].contains(file.hotkey) ? file.hotkey : "option"
         typeKey = Shortcut.from(file.typeShortcut).id
@@ -34,26 +45,23 @@ final class SettingsModel: ObservableObject {
         storePath = file.store.path ?? ""
         saveDate = file.store.saveDate
         collapsed = collapsedByDefault
-        available = availablePacks.compactMap(loadPack).map { p in
-            Language(code: p.code, name: p.name, missing: [p.monolingual, p.bilingual].compactMap { $0 }.filter { dictionaries[$0] == nil },
-                     ids: p.dictionaryIds ?? [])
-        }.sorted { ($0.code == "en" ? "" : $0.name) < ($1.code == "en" ? "" : $1.name) }
         saved = snapshot
     }
 
     var changed: Bool { saved != snapshot }
 
-    // a new user's settings, as Config's defaults: into the window only, applied by Save and Restart like any change
+    // a new user's settings, as Config's defaults: into the window only, applied by Save and Restart like any change.
+    // The vocabulary's file, format and date column stay as they are: they say where the words are, not a preference
     var defaults: Snapshot {
         let d = Config()
         return Snapshot(languages: Set(d.languages + ["en"]), hotkey: d.hotkey, typeKey: Shortcut.from(d.typeShortcut).id, menuBar: d.menuBar,
-                        closeAfter: d.closeAfter, storeType: d.store.type, storePath: d.store.path ?? "", saveDate: d.store.saveDate, collapsed: false)
+                        closeAfter: d.closeAfter, storeType: storeType, storePath: storePath, saveDate: saveDate, collapsed: false)
     }
     var isDefault: Bool { snapshot == defaults }
     func restoreDefaults() {
         let d = defaults
         languages = d.languages; hotkey = d.hotkey; typeKey = d.typeKey; menuBar = d.menuBar
-        closeAfter = d.closeAfter; storeType = d.storeType; storePath = d.storePath; saveDate = d.saveDate; collapsed = d.collapsed
+        closeAfter = d.closeAfter; collapsed = d.collapsed
     }
     var defaultPath: String { Paths.support.appendingPathComponent(storeType == "json" ? "vocabulary.json" : "Vocabulary.md").path }
 
@@ -97,7 +105,7 @@ final class SettingsModel: ObservableObject {
         recorder = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self else { return e }
             if e.keyCode == 53, e.modifierFlags.intersection([.control, .option, .command]).isEmpty { self.stopRecording(); return nil }  // Escape
-            if let s = Shortcut.from(e) { self.typeKey = s.id; self.stopRecording() } else { NSSound.beep() }
+            if let s = Shortcut.from(e) { self.typeKey = s.id; self.stopRecording() } else { NSSound.beep() }  // (the caption says why)
             return nil
         }
     }
@@ -109,7 +117,7 @@ final class SettingsModel: ObservableObject {
     func choosePath() {
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
-        panel.message = "Choose your vocabulary file (an existing note works: rows are only ever added)"
+        panel.message = "Choose your vocabulary file (an existing note works: words are only ever added, as rows and, for a new language, a column)"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.directoryURL = URL(fileURLWithPath: storePath.isEmpty ? defaultPath : expand(storePath)).deletingLastPathComponent()
@@ -123,6 +131,24 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if model.broken {
+                // the file can't be read: saving would replace it with the defaults this window shows
+                HStack(alignment: .top) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("config.json is not valid JSON: until it is fixed, Lookup Word starts with the defaults and saves no words. Fix the file, then Check Again; saving here is off until then, so your settings in it are not replaced.")
+                            .font(.callout).fixedSize(horizontal: false, vertical: true)
+                        HStack {
+                            Button("Open config.json") {
+                                NSWorkspace.shared.open([Paths.config], withApplicationAt: URL(fileURLWithPath: "/System/Applications/TextEdit.app"),
+                                                        configuration: NSWorkspace.OpenConfiguration())
+                            }
+                            Button("Check Again") { model.load() }
+                        }
+                    }
+                }
+                .padding(.horizontal, 20).padding(.top, 14)
+            }
             Form {
                 Section {
                     Picker("Key to press twice", selection: $model.hotkey) {
@@ -143,6 +169,10 @@ struct SettingsView: View {
                             Text("Or type a word, with a shortcut")
                             Text("Press it in any app: a box opens; type the word and press Return. Needs no permission.")
                                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            if model.recordingShortcut {
+                                Text("Press a key with two of ⌃ Control, ⌥ Option and ⌘ Command: with ⌘ or ⌥ alone, the shortcut would take that key from every app (⌘C would stop copying). Escape cancels.")
+                                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            }
                             Button("Reset the box's position") { resetTypeBoxPosition() }
                                 .buttonStyle(.link).font(.caption)
                                 .help("The box opens where you last dragged it; this centres it again.")
@@ -231,12 +261,12 @@ struct SettingsView: View {
 
             HStack {
                 Button("Restore Defaults") { model.restoreDefaults() }.disabled(model.isDefault)
-                    .help("A new user's settings, in this window; nothing changes until Save and Restart. Your vocabulary file stays as it is.")
+                    .help("A new user's settings, in this window; nothing changes until Save and Restart. Where and how words are saved stays as it is.")
                 if model.changed { Text("Changes apply after a restart.").font(.caption).foregroundStyle(.secondary) }
                 Spacer()
                 Button("Cancel") { onDone(false) }.keyboardShortcut(.cancelAction)
                 Button("Save and Restart") { model.save(); onDone(true) }
-                    .keyboardShortcut(.defaultAction).disabled(!model.changed)
+                    .keyboardShortcut(.defaultAction).disabled(!model.changed || model.broken)
             }
             .padding(.horizontal, 20).padding(.vertical, 14)
         }
@@ -245,8 +275,8 @@ struct SettingsView: View {
     }
 }
 
-// The type-a-word box's shortcut, recorded: click, then press the combination (with ⌃, ⌥ or ⌘); Escape cancels; Off
-// turns it off. The press is caught in this window only, while recording. (Its state lives in SettingsModel: the
+// The type-a-word box's shortcut, recorded: click, then press the combination (with two of ⌃, ⌥ and ⌘); Escape
+// cancels; ⓧ turns it off. The press is caught in this window only, while recording. (Its state lives in SettingsModel: the
 // Command Line Tools' SwiftUI has no @State.)
 struct ShortcutRecorder: View {
     @ObservedObject var model: SettingsModel
@@ -257,7 +287,7 @@ struct ShortcutRecorder: View {
                 Text(model.recordingShortcut ? "Press a shortcut…" : model.typeKey == "none" ? "Record Shortcut" : Shortcut.from(model.typeKey).symbol)
                     .frame(minWidth: 110)
             }
-            .help("Click, then press the keys: at least one of ⌃ Control, ⌥ Option or ⌘ Command, and a key. Escape cancels.")
+            .help("Click, then press the keys: two of ⌃ Control, ⌥ Option and ⌘ Command, and a key. Escape cancels.")
             if model.typeKey != "none" && !model.recordingShortcut {
                 Button { model.typeKey = "none" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
                     .buttonStyle(.borderless).help("Turn the shortcut off: the box then opens from the menu bar menu only")
@@ -325,6 +355,19 @@ func showSettings() {
     w.center()
     w.makeKeyAndOrderFront(nil)
     settingsWindow = w
+    // the close button discards the edits, as Cancel does: the next Settings… starts from the file
+    onClose(w) { if settingsWindow === w { settingsWindow = nil } }
+}
+
+// runs f once, when w closes (the observer's token kept in a box: it exists only after the closure is made)
+func onClose(_ w: NSWindow, _ f: @escaping () -> Void) {
+    final class Token { var value: NSObjectProtocol? }
+    let token = Token()
+    token.value = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
+        f()
+        token.value.map(NotificationCenter.default.removeObserver)
+        token.value = nil
+    }
 }
 
 // Turns dictionaries on as ticking them in Dictionary → Settings… does: their identifiers join Dictionary.app's list
@@ -360,7 +403,7 @@ func restart() {
         if p.terminationStatus == 0 { Thread.sleep(forTimeInterval: 10) }
         // a kickstart refused, or this copy not stopped: quit with a failure, which launchd's KeepAlive restarts. Not a
         // new copy opened below: this copy then quit with success, launchd left its job stopped, and the new copy ran
-        // outside it, where the next install could not stop it (his Restart clicks, 2026-11-02, 15:06 and 16:00)
+        // outside it, where the next install could not stop it
         log("restart: launchctl kickstart gave \(p.terminationStatus); quitting for launchd to start it again")
         exit(1)
     }

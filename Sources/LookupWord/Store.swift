@@ -20,6 +20,14 @@ func makeStore(_ c: StoreConfig) -> VocabularyStore {
 // the path in the settings, nil when unset or blank (the default file then)
 func storePath(_ c: StoreConfig) -> String? { c.path.map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 } }
 
+// the vocabulary file: a relative path is in the home folder, not wherever the app was started (the launch agent
+// starts it in /); a symlinked file is saved where it points, not replaced by a plain file
+func storeFile(_ c: StoreConfig, _ name: String) -> URL {
+    let path = expand(storePath(c) ?? Paths.support.appendingPathComponent(name).path)
+    let home = FileManager.default.homeDirectoryForCurrentUser
+    return (path.hasPrefix("/") ? URL(fileURLWithPath: path) : home.appendingPathComponent(path)).resolvingSymlinksInPath()
+}
+
 struct NoStore: VocabularyStore {
     var url: URL? { nil }
     func save(_ e: Entry) -> String { "" }
@@ -27,36 +35,35 @@ struct NoStore: VocabularyStore {
 
 struct BrokenStore: VocabularyStore {
     var url: URL? { nil }
-    func save(_ e: Entry) -> String { "Not saved: config.json is not valid JSON. Fix it (menu bar → Open Settings), then restart." }
+    func save(_ e: Entry) -> String { "Not saved: config.json is not valid JSON. Fix it (menu bar → Settings…), then restart." }
 }
 
 // --- JSON: [{word, language, meaning, translations: {code: words}, added}] ----------------------------------------
+// Each entry is kept as the file has it, so a key the user or another tool added (notes, tags) survives a save.
 
 struct JSONStore: VocabularyStore {
-    struct Word: Codable { var word, language, meaning: String; var translations: [String: String]; var added: String? }
     let saveDate: Bool, file: URL
     init(_ c: StoreConfig) {
         saveDate = c.saveDate
-        // as the Markdown store: an empty path is the default, and a symlinked file is saved where it points
-        file = URL(fileURLWithPath: expand(storePath(c) ?? Paths.support.appendingPathComponent("vocabulary.json").path)).resolvingSymlinksInPath()
+        file = storeFile(c, "vocabulary.json")
     }
     var url: URL? { file }
 
     func save(_ e: Entry) -> String {
-        var list: [Word] = []
-        if let data = try? Data(contentsOf: file) {
-            guard let l = try? JSONDecoder().decode([Word].self, from: data) else { return "Not saved: \(file.lastPathComponent) is not a word list." }
+        var list: [[String: Any]] = []
+        // an empty file (just made in another app) is an empty list
+        if let data = try? Data(contentsOf: file), !data.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }) {
+            guard let l = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return "Not saved: \(file.lastPathComponent) is not a word list." }
             list = l
         }
-        if list.contains(where: { $0.language == e.lang && $0.word.lowercased() == e.word.lowercased() }) { return "Already saved to your vocabulary." }
-        let when = saveDate ? ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime]) : nil
-        list.append(Word(word: e.word, language: e.lang, meaning: e.meaning,
-                         translations: Dictionary(e.tr.filter { !$0.1.isEmpty }, uniquingKeysWith: { a, _ in a }), added: when))
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        if list.contains(where: { $0["language"] as? String == e.lang && ($0["word"] as? String)?.lowercased() == e.word.lowercased() }) { return "Already saved to your vocabulary." }
+        var word: [String: Any] = ["word": e.word, "language": e.lang, "meaning": e.meaning,
+                                   "translations": Dictionary(e.tr.filter { !$0.1.isEmpty }, uniquingKeysWith: { a, _ in a })]
+        if saveDate { word["added"] = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime]) }
+        list.append(word)
         do {
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try enc.encode(list).write(to: file, options: .atomic)
+            try JSONSerialization.data(withJSONObject: list, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]).write(to: file, options: .atomic)
         } catch { return "Not saved: \(error.localizedDescription)" }
         return "Saved to your vocabulary."
     }
@@ -66,14 +73,14 @@ struct JSONStore: VocabularyStore {
 // The file is meant to be read and synced by other apps (a notes vault), so a save never writes over a read that may
 // be half of the file: it reads until the file is whole, writes only if the file still holds what it read, writes
 // through a temporary file renamed over it, and keeps the last 30 versions in backups/ in the support folder. Each save
-// adds one row (and, the first time, that language's section at the end); nothing else in the file changes.
+// adds one row (and, the first time, that language's section at the end; for a language added since, a column at the
+// end of its table); nothing else in the file changes.
 
 struct MarkdownStore: VocabularyStore {
     let file: URL, saveDate: Bool
     init(_ c: StoreConfig) {
         saveDate = c.saveDate
-        // a symlinked note is saved where it points, not replaced by a plain file
-        file = URL(fileURLWithPath: expand(storePath(c) ?? Paths.support.appendingPathComponent("Vocabulary.md").path)).resolvingSymlinksInPath()
+        file = storeFile(c, "Vocabulary.md")
     }
     var url: URL? { file }
     var name: String { file.lastPathComponent }
@@ -103,10 +110,8 @@ struct MarkdownStore: VocabularyStore {
 
     // The size of the file after the last save, so a read that is much shorter (half a file, while another app writes
     // it) is caught: one small file per vocabulary file in the support folder, so two saves never overwrite each other's.
-    var sizeFile: URL {
-        let key = file.path.unicodeScalars.reduce(UInt64(5381)) { ($0 &* 33) &+ UInt64($1.value) }  // djb2: stable across runs
-        return Paths.support.appendingPathComponent("sizes/\(String(key, radix: 16)).txt")
-    }
+    var key: String { String(file.path.unicodeScalars.reduce(UInt64(5381)) { ($0 &* 33) &+ UInt64($1.value) }, radix: 16) }  // djb2: stable across runs
+    var sizeFile: URL { Paths.support.appendingPathComponent("sizes/\(key).txt") }
     func lastSize() -> Int? { (try? String(contentsOf: sizeFile, encoding: .utf8)).flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) } }
     func remember(_ size: Int?) {
         guard let size else { try? FileManager.default.removeItem(at: sizeFile); return }
@@ -122,13 +127,18 @@ struct MarkdownStore: VocabularyStore {
                 remember(nil)  // look the word up again to start a new file there
                 return (nil, "\(name) is no longer at \(file.deletingLastPathComponent().path). If you moved it, choose it again in Settings; to start a new one there, look the word up again")
             }
-            try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? "# Vocabulary\n".write(to: file, atomically: true, encoding: .utf8)
+            do {
+                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try "# Vocabulary\n".write(to: file, atomically: true, encoding: .utf8)
+            } catch { return (nil, "\(name) could not be made in \(file.deletingLastPathComponent().path): \(error.localizedDescription.trimmingCharacters(in: CharacterSet(charactersIn: ".")))") }
         }
         var why = "", reads: [String?] = []
         for i in 0..<5 {
             let text = try? String(contentsOf: file, encoding: .utf8)
             if let text, !text.isEmpty, text.utf8.count * 2 >= (lastSize() ?? 0) { return (text, "") }
+            // empty is whole only before the first save (a note just made in another app), and only once it stays
+            // empty for three reads (not a note truncated for a moment); insert() then starts it
+            if text == "", (lastSize() ?? 0) == 0, i >= 2, reads.suffix(2).allSatisfy({ $0 == "" }) { return ("", "") }
             reads.append(text)
             why = text == nil ? "\(name) is not readable as text" : text!.isEmpty ? "\(name) is empty (another app saving it?)"
                 : "\(name) is much shorter than after the last save (another app saving it?)"
@@ -145,18 +155,19 @@ struct MarkdownStore: VocabularyStore {
 
     // the new text in place of the old, only if the file still holds exactly the old: through a temporary file renamed
     // over it, so no reader ever sees half of it, with the file's permissions kept. Each saved version is copied to
-    // backups/ (the newest 30), and the first save also keeps the version it started from. False when the file
-    // changed meanwhile.
+    // backups/<key>/ (the newest 30; one folder per vocabulary file, as sizes/), and the first save also keeps the
+    // version it started from. A UTF-8 BOM the file starts with is kept. False when the file changed meanwhile.
     func write(_ old: String, _ new: String) -> Bool {
-        let fm = FileManager.default, dir = Paths.support.appendingPathComponent("backups")
+        let fm = FileManager.default, dir = Paths.support.appendingPathComponent("backups/\(key)")
         try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         let stem = file.deletingPathExtension().lastPathComponent
-        let mine = { ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasPrefix(stem + "-") && $0.hasSuffix(".md") }.sorted() }
+        let mine = { ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".md") }.sorted() }
         let stamp = { () -> String in let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss-SSS"; return f.string(from: Date()) }
         if mine().isEmpty { try? fm.copyItem(at: file, to: dir.appendingPathComponent("\(stem)-\(stamp())-before.md")) }
         guard (try? String(contentsOf: file, encoding: .utf8)) == old else { return false }
+        let bom = Data([0xEF, 0xBB, 0xBF]), hasBOM = (try? Data(contentsOf: file))?.starts(with: bom) == true
         let tmp = file.deletingLastPathComponent().appendingPathComponent(".\(name).saving")
-        guard (try? new.write(to: tmp, atomically: false, encoding: .utf8)) != nil else { return false }
+        guard (try? ((hasBOM ? bom : Data()) + Data(new.utf8)).write(to: tmp)) != nil else { return false }
         if let mode = (try? fm.attributesOfItem(atPath: file.path))?[.posixPermissions] {
             try? fm.setAttributes([.posixPermissions: mode], ofItemAtPath: tmp.path)
         }
@@ -216,6 +227,7 @@ struct MarkdownStore: VocabularyStore {
 
     // the text with the word's row in its language's table; or a status line when there is nothing to write
     func insert(_ text: String, _ e: Entry) -> Change {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "# Vocabulary\n" : text  // a new, empty note
         let eol = text.contains("\r\n") ? "\r\n" : "\n"  // the file's own line endings, kept
         var lines = text.components(separatedBy: "\n").map { $0.hasSuffix("\r") ? String($0.dropLast()) : $0 }
         if section(lines, e.lang) == nil {  // the first word in a language: its section, at the end of the file
@@ -228,20 +240,20 @@ struct MarkdownStore: VocabularyStore {
         guard let t = table(lines, span) else { return .status("Not saved: the \(heading(e.lang)) section of \(name) has no table.") }
         if known(lines, t).contains(e.word.lowercased()) { return .status("Already saved to \(heading(e.lang)).") }
         // a language added in Settings since the table was made (or Added, once turned on): its column at the table's
-        // end, each existing row given an empty cell, so nothing asks the user to edit the header. Meaning is not put
-        // back: a table without it was made that way on purpose.
+        // end, each existing row given an empty cell after its own cells (padded to the old header first), so nothing
+        // asks the user to edit the header. A row already as wide as the new header is left as it is. Meaning is not
+        // put back: a table without it was made that way on purpose.
         var cols = cells(lines[t.header]).dropFirst().map { column($0) }
         let wanted = columns(e.lang).filter { $0 != "meaning" && !cols.contains($0) }
         if !wanted.isEmpty {
-            let width = cells(lines[t.header]).count
-            for i in t.header...t.end {
+            let old = cells(lines[t.header]).count, width = old + wanted.count
+            for i in t.header...t.end where i == t.header || cells(lines[i]).count < width {
                 var line = lines[i]
                 while line.last?.isWhitespace == true { line.removeLast() }
                 if !line.hasSuffix("|") || line.hasSuffix("\\|") { line += " |" }
                 let isRule = i == t.header + 1 && cells(line).allSatisfy { $0.trimmingCharacters(in: .whitespaces).allSatisfy { "-: ".contains($0) } }
                 let filler = isRule ? " --- |" : " |"
-                line += String(repeating: filler, count: max(0, width - cells(line).count))  // a short row, first lined up
-                lines[i] = line + (i == t.header ? wanted.map { " \(columnName($0)) |" }.joined() : String(repeating: filler, count: wanted.count))
+                lines[i] = line + (i == t.header ? wanted.map { " \(columnName($0)) |" }.joined() : String(repeating: filler, count: max(0, old - cells(line).count) + wanted.count))
             }
             cols += wanted
         }

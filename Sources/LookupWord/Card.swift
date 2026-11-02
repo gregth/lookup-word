@@ -14,7 +14,7 @@ func run(_ s: String, _ font: NSFont, _ color: NSColor = .labelColor) -> NSAttri
 }
 
 // a language's code in a small rounded badge (NL, EL), one width for all so the rows line up: a code, not a flag, as
-// a flag names a country, not a language (Spanish is Mexico's too), and some languages have none (his call, 2026-11-02)
+// a flag names a country, not a language (Spanish is Mexico's too), and some languages have none
 func badge(_ code: String) -> NSAttributedString {
     let label = code.uppercased() as NSString
     let font = NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
@@ -80,7 +80,10 @@ func senseBreaks(_ text: String) -> String {
 }
 
 func formatted(_ text: String) -> NSAttributedString {
-    var t = replacing(text, #"\s*\b(DERIVATIVES|PHRASES|PHRASAL VERBS|IDIOMS|ORIGIN|ANTONYMS|USAGE|SYNONYMS)\b\s*"#, "\n\n$1\n")
+    // Oxford's inflections, as the dictionary gives them: "(runs) (, running) (past; ran | ran |)"
+    var t = replacing(text, #"\)\s*\(\s*[,;]\s*"#, ", ")
+    t = replacing(t, #"\((past|past participle|present participle|plural|comparative|superlative);\s*"#, "($1 ")
+    t = replacing(t, #"\s*\b(DERIVATIVES|PHRASES|PHRASAL VERBS|IDIOMS|ORIGIN|ANTONYMS|USAGE|SYNONYMS)\b\s*"#, "\n\n$1\n")
     t = replacing(t, #"\s*▸\s*"#, "\n▸ ")
     t = replacing(t, #"\s*•\s*"#, "\n• ")
     t = senseBreaks(t)
@@ -149,6 +152,20 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
         line.addAttribute(.paragraphStyle, value: indent(0, 32, tab: 32), range: NSRange(location: 0, length: line.length))
         out.append(line)
     }
+    // a language on with its dictionaries missing has no row: a muted line says so, rather than the language just
+    // not being there; and with English alone, where the others are turned on
+    let hints = others.filter { p in p.code != e.lang && !missingDictionaries(p).isEmpty && !e.tr.contains { $0.0 == p.code && !$0.1.isEmpty } }
+        .map { (badge: $0.code, text: "\($0.name) needs its dictionaries: enable them in Settings…") }
+        + (others.isEmpty ? [(badge: "", text: "Only English is on: turn on your other languages in Settings…")] : [])
+    for h in hints {
+        let font = NSFont.systemFont(ofSize: 12)
+        let line = NSMutableAttributedString(string: "\n", attributes: [.font: font])
+        if !h.badge.isEmpty { line.append(badge(h.badge)); line.append(run("\t", font)) }
+        line.append(NSAttributedString(string: h.text, attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor,
+                                                                    .link: URL(string: "lookupword://open/settings")!, .cursor: NSCursor.pointingHand]))
+        line.addAttribute(.paragraphStyle, value: indent(0, 32, tab: 32), range: NSRange(location: 0, length: line.length))
+        out.append(line)
+    }
     // Collapse all (or Expand all), small and muted, at the right above the first dictionary, where its reader is
     if !e.sections.isEmpty {
         let font = NSFont.systemFont(ofSize: 11)
@@ -188,6 +205,9 @@ func card(_ e: Entry, status: String) -> NSAttributedString {
     return out
 }
 
+// the dictionaries a pack needs that Dictionary.app does not have turned on (Settings → Languages offers Enable)
+func missingDictionaries(_ p: Pack) -> [String] { [p.monolingual, p.bilingual].compactMap { $0 }.filter { dictionaries[$0] == nil } }
+
 // The card's foot, small and muted: the word's own language's dictionaries online.
 func footer(_ e: Entry) -> NSAttributedString {
     let font = NSFont.systemFont(ofSize: 11)
@@ -225,7 +245,7 @@ func message(_ s: String, action: (title: String, url: String)? = nil) -> NSAttr
 
 var voice = AVSpeechSynthesizer(), stopped: AVSpeechSynthesizer?  // (the one stopped, kept until the next)
 // A row of several words ("γιατί, που", "weather · time"): each said on its own, with a short pause between, not one
-// run-on sentence with its commas and the · read out (his report, 2026-11-02: "the speaker sounds abnormal")
+// run-on sentence with its commas and the · read out
 func speak(_ text: String, _ lang: String) {
     log("say (\(lang)): \(text)")
     // a new synthesizer each time: one stopped mid-row could drop the words queued right after (a click while a row
@@ -243,8 +263,8 @@ func speak(_ text: String, _ lang: String) {
 }
 
 // The card's text. A double-tap shows the card while another app stays active, and a window of an inactive app
-// takes the first click only to activate it: so the first click on a speaker or a link did nothing (his report,
-// 2026-11-02: "the sound does not play some times"). It takes that click too.
+// takes the first click only to activate it: so the first click on a speaker or a link did nothing. It takes that
+// click too.
 final class CardText: NSTextView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
@@ -304,9 +324,7 @@ final class Card: NSViewController, NSTextViewDelegate {
         scroll.contentView.scroll(to: .zero)
         scroll.reflectScrolledClipView(scroll.contentView)
     }
-    // the guard against the card opening scrolled above its top, blank there and cut at the bottom (his report,
-    // 2026-11-02, a typed word's card; not reproduced: whatever scrolls it does so after top())
-    // The guard against a card blank at its top and cut at its bottom (his reports, 2026-11-02, typed words' cards; not
+    // The guard against a card blank at its top and cut at its bottom (seen with typed words' cards; not
     // reproduced here with a fresh card, a scrolled one before it, several in a row, or the box low on the screen): the
     // scroll view fills the popover and starts at its top, and what was wrong goes to the log, to find the cause.
     override func viewDidLayout() {
@@ -322,13 +340,16 @@ final class Card: NSViewController, NSTextViewDelegate {
     func textView(_ v: NSTextView, clickedOnLink link: Any, at i: Int) -> Bool {
         if let u = link as? URL, u.scheme == "https" {  // Read more: in the browser, the card closed
             NSWorkspace.shared.open(u)
-            if typeBox?.pinned != true { close() }
+            if typeBox?.pinned != true { closeCard() }  // (the box, if open, keeps its click-outside watch)
             return true
         }
         if let u = link as? URL, u.scheme == "lookupword" {
             switch (u.host ?? "") + u.path {
             case "open/accessibility": askPermission("Privacy_Accessibility")
             case "open/screen-recording": askPermission("Privacy_ScreenCapture")
+            case "open/settings":
+                if typeBox?.pinned != true { closeCard() }
+                showSettings()
             case "toggle/all":
                 UserDefaults.standard.set(!collapsedByDefault, forKey: collapsedKey)
                 toggled = []

@@ -21,7 +21,7 @@
   "gloss": {
     "labels": ["bn", "bw", "znw", "ww", "vz", "pers", "vnw", "tw", "het", "de", "zelfstandig", "naamwoord", "bijvoeglijk",
                "werkwoord", "overg", "onoverg", "wederk", "bijw", "telw", "tsw", "voegw", "voorz", "&"],
-    "inner": ["znw", "ww", "hulpww", "bn", "bw", "bijw", "telw", "overg", "onoverg", "voorz", "wederk", "ook"],
+    "inner": ["znw", "ww", "hulpww", "bn", "bw", "bijw", "telw", "overg", "onoverg", "voorz", "wederk", "ook", "lidw", "samentr"],
     "cuts": ["zie:"],
     "variants": [["\\bin het alg\\.\\s*", ""]]
   }

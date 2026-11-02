@@ -20,9 +20,12 @@ flowchart TD
   ST["Store.swift: Markdown / JSON store"]
   CA["Card.swift: popover"]
   SE["Settings.swift: settings window, restart"]
-  WE["Welcome.swift: welcome window, permissions"]
+  WE["Welcome.swift: welcome window, permissions, languages"]
+  TY["Type.swift: type-a-word box, hot key"]
   CF["Config.swift: config.json, Paths"]
 
+  M --> TY
+  TY -->|"show()"| M
   M --> SC
   M --> MA
   M --> LU
@@ -39,6 +42,8 @@ flowchart TD
   PK <--> GR
   ST --> LU
   CA --> LU
+  CA --> SE
+  WE --> SE
   SE --> CF
   SE --> PK
   PK --> CF
@@ -46,6 +51,9 @@ flowchart TD
 
 - `main.swift` owns the flow: `onKey()` spots the double-tap, `lookUp()` picks the word, `show()` builds the entry,
   presents the card and hands the save to a serial `saves` queue.
+- `Type.swift` registers the type-a-word shortcut as a Carbon hot key (`RegisterEventHotKey`, no permission needed),
+  shows the box (`showTypeBox()`) and, on Return, hands the word to `show()` (`lookUpTyped()`); the card hangs from a
+  child window of the box, so it moves with the box. The pin, the box's dragged position and its click-outside watch live there too.
 - `Lookup.swift` builds an `Entry`; `Store.swift` and `Card.swift` only consume it. `Dictionaries.swift` holds the
   Dictionary.app calls (`define()`), the gloss extraction and the base-form search.
 - `Packs.swift` loads `pack.json` per language and registers code hooks in `languageHooks`; `GreekHooks` is the only
@@ -60,6 +68,7 @@ flowchart TD
   T["Double-tap: onKey() calls lookUp()"] --> S{"selection() via Accessibility?"}
   S -- "selected text" --> SH["show(word, rect, around)"]
   S -- nothing --> O
+  TB["Type-a-word hot key: showTypeBox(); Return: lookUpTyped()"] --> SH
   O["byOCR(): ScreenCaptureKit capture, wordAt() reads it with Vision; no Screen Recording: the card explains, with a button to the setting"]
   O --> X["textUnderPointer() + closest(): the app's own word, if any"]
   X --> SH
@@ -114,8 +123,8 @@ flowchart LR
   verb whose first sense takes no object). A noun keeps its entry's opening noun part when that part has a translation
   before its first example (*tree* → *boom*, not the verb's "in een boom jagen"). An adjective's English items whose
   entries are only nouns are tried last (*gentil* → *kind, nice* → German *nett*, not *Art*).
-- Each dictionary's entries are rewritten with English's and their own pack's `cuts`, `grammarNotes` and `variants`
-  (`glossRules()`), never another pack's; label lists are shared.
+- Each dictionary's entries are rewritten with English's and their own pack's `cuts`, `trailing`, `grammarNotes` and
+  `variants` (`glossRules()`), never another pack's; the `labels` and `inner` lists are shared.
 - Data in `pack.json` covers most of a language: dictionary names, `script`, `recognizer`, `ocr`, `spellChecker`,
   verb rules, `stripHints`, `lemmas` and gloss labels. Code in `LanguageHooks` covers what data cannot: Greek maps
   Cyrillic/Latin look-alike readings back to Greek letters and lists the dictionary forms a regular ending points to,
@@ -133,7 +142,7 @@ flowchart TD
   M -- "saved there before" --> N0["Not saved: it moved (the next lookup starts a new one)"]
   NEW --> R
   M -- no --> R["read(): up to 5 tries, 0.3 s apart"]
-  R --> W{"unreadable, empty, or under half the size after the last save?"}
+  R --> W{"unreadable, empty after a save, or under half the size after the last save?"}
   W -- "for over a second" --> N1["Not saved: the reason (the same shorter text 3 times: accepted next time)"]
   W -- whole --> K{"word in the section's table? first cell, bold or not"}
   K -- yes --> N2["Already in that table"]
@@ -141,7 +150,7 @@ flowchart TD
   I --> CAS{"file still equals what read() got?"}
   CAS -- "changed, or could not write: retry, 3 attempts" --> R
   CAS -- same --> TR["write .file.saving with the file's permissions, rename() over it"]
-  TR --> OK["Saved: the size remembered, the version copied to backups/ (newest 30)"]
+  TR --> OK["Saved: the size remembered, the version copied to its folder in backups/ (newest 30)"]
 ```
 
 - The size after each save is kept in `sizes/` in the support folder, one small file per vocabulary file, so a read that
@@ -150,11 +159,19 @@ flowchart TD
 - `insert()` keeps the file's line endings (LF or CRLF), finds the section by its heading (`## Dutch`, any case, or the
   code), and writes the row in the table's own header order ("Meaning", "Added", a language's name or code); a value the
   table has no column for is named in the status line. A symlinked note is written where it points.
-- The first save also copies the file as it was (`…-before.md`), so the version before Lookup Word touched it is kept.
+- Backups go to `backups/<key>/`, keyed as `sizes/` is, so two vocabulary files with the same name keep their own. The
+  first save also copies the file as it was (`…-before.md`), so the version before Lookup Word touched it is kept. A
+  UTF-8 BOM the file starts with is kept. Backups an earlier version wrote straight into `backups/` stay there, for
+  the user to delete.
+- An empty file is taken as whole only before its first save (a note just made in another app), and only once three
+  reads in a row find it empty (not a note a sync client truncates for a moment): `insert()` starts it
+  with `# Vocabulary`. A language added since a table was made gets a column at its end, each row an empty cell.
 - The compare-and-swap is "re-read, compare, rename": a writer between the compare and the `rename()` can still lose,
   but no reader ever sees a half-written file, and the `saves` queue keeps the app's own saves in order (a `--save` from
   the command line runs in its own process and relies on the compare).
-- `JSONStore` is simpler: decode the list, append, one atomic write; no backups or compare.
+- `JSONStore` is simpler: read the list as plain JSON objects (so keys another tool added survive), append, one atomic
+  write; no backups or compare.
+- A relative `store.path` is in the home folder (`storeFile()`): the launch agent starts the app in `/`.
 
 ## 5. Settings and restart
 
@@ -174,15 +191,25 @@ flowchart TD
 ```
 
 - `config` is read once per process. Each key decodes on its own (`lenient()`): a bad value keeps its default and adds a
-  warning to the card's status line; a file that is not JSON sets `configBroken`, and the store becomes `BrokenStore`,
-  which saves nothing until it is fixed. A missing file is written out with the defaults.
+  warning to the card's status line, as does a key it does not know (`unknownKeys()`, naming the nearest known one); a
+  file that is not JSON sets `configBroken`, and the store becomes `BrokenStore`, which saves nothing until it is
+  fixed. A missing file is written out with the defaults.
 - `SettingsModel.save()` and `setSetting()` rewrite only their own keys and keep every other key. A file that isn't
-  JSON: `setSetting()` leaves it alone; `SettingsModel.save()` keeps a copy as `config.broken.json`, then writes.
+  JSON: `setSetting()` leaves it alone; the Settings window says so (`broken`) and keeps Save and Restart off until
+  Check Again reads valid JSON. (`save()` would still keep a copy as `config.broken.json` before writing.)
+- **Restore Defaults** puts `Config()`'s values in the window only, keeping the store's type, path and date column.
+  The card's expanded or collapsed dictionaries are not in `config.json`: they live in `UserDefaults`
+  (`sectionsCollapsed`), which the card's Collapse all also sets.
 - `restart()` asks launchd to restart the job (`launchctl kickstart -k`) when launchd started it (the plist sets
   `LOOKUP_AGENT`), then waits to be stopped, ending with a failure exit if it is not, which `KeepAlive` with
   `SuccessfulExit` false also restarts. Started any other way, it opens a new copy of itself before quitting. Quit
   exits 0, so launchd leaves it stopped.
-- `install.sh` builds a release binary, assembles and signs the app (its own certificate if there is one, else ad hoc,
-  which resets the permissions), writes `~/Library/LaunchAgents/io.github.gregth.lookup-word.plist` with stderr to
-  `~/Library/Logs/Lookup Word/lookup.log`. It stops the running copy (`bootout`) before replacing the app's files and
-  starts it again (`bootstrap`) at the end.
+- `install.sh` builds a release binary, assembles and signs the app with the hardened runtime (`--options runtime`;
+  its own certificate if there is one, `LOOKUP_SIGN_IDENTITY` remembered in the support folder's `signing-identity`,
+  else ad hoc, which resets the permissions), writes `~/Library/LaunchAgents/io.github.gregth.lookup-word.plist` with
+  stderr to `~/Library/Logs/Lookup Word/lookup.log`. It stops the running copy (`bootout`) before replacing the app's
+  files and starts it again (`bootstrap`) at the end.
+- launchd appends to that log forever, and it lists the words looked up, so the app cuts it to its last 256 KB at
+  launch when it is over 1 MB. Words are logged as found; a selection with no entry only by its length unless it looks
+  like a word (letters, apostrophes, hyphens, up to three spaces), and the screen's words around a reading only with
+  `debug`.

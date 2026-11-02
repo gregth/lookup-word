@@ -2,7 +2,7 @@
 OK	en	nl: oké, in orde, goed
 alignment	en	nl: op één lijn brengen, richten, opstelling
 ambiguous	en	nl: ambigu, dubbelzinnig
-an	en	nl: lidw een
+an	en	nl: een
 arm	en	nl: arm
 bat	en	nl: vleermuis
 bear	en	nl: dragen
@@ -10,7 +10,7 @@ bed	en	nl: bed
 best	en	nl: best
 bow	en	nl: boog
 dog	en	nl: hond
-don't	en	nl: samentr
+don't	en	en don't
 going	en	nl: gaan, gang
 happiest	en	nl: gelukkig, tevreden, blij
 hardly	en	nl: nauwelijks, ternauwernood, bijna niet
@@ -53,3 +53,14 @@ accessibility	en	de: Zugänglichkeit
 accessibility	en	es: fácil acceso, accesibilidad
 bank	en	es: orilla, ribera · banco
 do	en	nl: doen, uitvoeren
+children	en	nl: kind
+children	en	es: niño
+went	en	nl: gaan
+went	en	de: gehen
+mice	en	nl: muis
+ran	en	de: laufen
+bought	en	es: comprar
+seen	en	nl: zien
+give	en	meaning: freely transfer the possession of something to someone
+woman	en	meaning: an adult female human being
+I	en	el: εγώ
