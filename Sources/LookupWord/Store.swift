@@ -48,7 +48,7 @@ struct JSONStore: VocabularyStore {
             guard let l = try? JSONDecoder().decode([Word].self, from: data) else { return "Not saved: \(file.lastPathComponent) is not a word list." }
             list = l
         }
-        if list.contains(where: { $0.language == e.lang && $0.word.lowercased() == e.word.lowercased() }) { return "Already in your vocabulary." }
+        if list.contains(where: { $0.language == e.lang && $0.word.lowercased() == e.word.lowercased() }) { return "Already saved to your vocabulary." }
         let when = saveDate ? ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime]) : nil
         list.append(Word(word: e.word, language: e.lang, meaning: e.meaning,
                          translations: Dictionary(e.tr.filter { !$0.1.isEmpty }, uniquingKeysWith: { a, _ in a }), added: when))
@@ -226,7 +226,7 @@ struct MarkdownStore: VocabularyStore {
         }
         let span = section(lines, e.lang)!
         guard let t = table(lines, span) else { return .status("Not saved: the \(heading(e.lang)) section of \(name) has no table.") }
-        if known(lines, t).contains(e.word.lowercased()) { return .status("Already in \(heading(e.lang)).") }
+        if known(lines, t).contains(e.word.lowercased()) { return .status("Already saved to \(heading(e.lang)).") }
         // a language added in Settings since the table was made (or Added, once turned on): its column at the table's
         // end, each existing row given an empty cell, so nothing asks the user to edit the header. Meaning is not put
         // back: a table without it was made that way on purpose.

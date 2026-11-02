@@ -226,6 +226,7 @@ final class Card: NSViewController, NSTextViewDelegate {
         scroll.scrollerStyle = .overlay  // a scroller that takes no width, so the text wraps as measured
         scroll.automaticallyAdjustsContentInsets = false  // no inset of its own, so it opens at the top
         scroll.contentInsets = NSEdgeInsets()
+        scroll.autoresizingMask = [.width, .height]  // the popover's size, whatever resizes it
         scroll.drawsBackground = true  // a solid card, not the popover's see-through glass
         scroll.backgroundColor = .windowBackgroundColor
         view = scroll
@@ -266,8 +267,17 @@ final class Card: NSViewController, NSTextViewDelegate {
     }
     // the guard against the card opening scrolled above its top, blank there and cut at the bottom (his report,
     // 2026-11-02, a typed word's card; not reproduced: whatever scrolls it does so after top())
+    // The guard against a card blank at its top and cut at its bottom (his reports, 2026-11-02, typed words' cards; not
+    // reproduced here with a fresh card, a scrolled one before it, several in a row, or the box low on the screen): the
+    // scroll view fills the popover and starts at its top, and what was wrong goes to the log, to find the cause.
     override func viewDidLayout() {
         super.viewDidLayout()
+        let wrongFrame = pop.map { scroll.frame.size != $0.contentSize } ?? false
+        let aboveTop = scroll.contentView.bounds.origin.y < 0 || scroll.contentInsets.top != 0
+        guard wrongFrame || aboveTop else { return }
+        log("card layout fixed: scroll=\(scroll.frame) for \(pop?.contentSize ?? .zero), clip=\(scroll.contentView.bounds), insets=\(scroll.contentInsets.top), window=\(view.window?.frame ?? .zero), safeArea=\(view.window?.contentView?.safeAreaInsets.top ?? 0)")
+        if wrongFrame, let size = pop?.contentSize { scroll.setFrameSize(size) }
+        scroll.contentInsets = NSEdgeInsets()
         if scroll.contentView.bounds.origin.y < 0 { top() }
     }
     func textView(_ v: NSTextView, clickedOnLink link: Any, at i: Int) -> Bool {

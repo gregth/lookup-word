@@ -191,8 +191,19 @@ func gloss(_ entry: String?, list: Bool = true, target: Pack? = nil, from: Pack?
     s = replacing(replacing(words.joined(separator: " "), #"\s*&\s*(?=,|$)"#, ""), #"^\d+"#, "").trimmingCharacters(in: .whitespaces.union(.init(charactersIn: ".,;:")))
     guard list else { return s }
     var seen = Set<String>()  // an item once ("lopen, lopen, rennen" from two senses)
+    // not a sub-sense's letter ("fácil acceso, b, he prides …"), nor an example the dictionary gave no ▸ ("1
+    // (reachability) the easy accessibility of the beach der leichte Zugang zum Strand"): three words or more with the
+    // word itself in them (a single "hotel" in Dutch is the translation)
+    let word = (wanted ?? "").lowercased()
+    func example(_ item: String) -> Bool {
+        let words = item.lowercased().split(separator: " ")
+        return !word.isEmpty && words.count >= 3 && words.contains { $0.trimmingCharacters(in: .punctuationCharacters) == word }
+    }
+    // (one that starts with the word itself, run into its examples, keeps the word: Dutch winter "winter in de
+    // winter stallen overwinteren")
     return s.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        .filter { $0.contains(where: \.isLetter) && seen.insert($0.lowercased()).inserted }.prefix(3)
+        .map { example($0) && $0.lowercased().hasPrefix(word + " ") ? String($0.prefix(word.count)) : $0 }
+        .filter { $0.filter(\.isLetter).count > 1 && !example($0) && seen.insert($0.lowercased()).inserted }.prefix(3)
         .joined(separator: ", ")
 }
 
@@ -423,13 +434,13 @@ func ownEntry(_ word: String, _ t: String?, _ p: Pack) -> String? {
 // target's script when it has one.
 func senses(_ entry: String?, target: Pack? = nil, from: Pack? = nil, noun: Bool = false, others: [String] = []) -> [String] {
     let first = gloss(entry, target: target, from: from, noun: noun)
-    guard let e = entry, !first.isEmpty else { return first.isEmpty ? [] : [first] }
-    var out = [first]
+    guard let e = entry else { return [] }
+    var out = first.isEmpty ? [] : [first]  // (none: sense 1 was all example, and sense 2 leads)
     var seen = Set(first.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() })
     let word = (wanted ?? "").lowercased()
     func add(_ g: String) {
         guard out.count < 3, let item = g.split(separator: ",").first.map({ $0.trimmingCharacters(in: .whitespaces) }), !item.isEmpty,
-              item.split(separator: " ").count <= 3, !item.contains(where: \.isNumber),
+              item.split(separator: " ").count <= 3, !item.contains(where: { $0.isNumber || $0 == "/" }),  // (an example's "tierra/nieve")
               word.isEmpty || !item.lowercased().split(separator: " ").contains(Substring(word)),
               target?.script.map({ matches(item, #"\p{"# + $0 + "}") }) ?? true,
               target.map({ t in t.isEnglish || t.script != nil || define(item, in: t.monolingual) != nil || define(item, in: english.monolingual) == nil }) ?? true,
@@ -439,6 +450,11 @@ func senses(_ entry: String?, target: Pack? = nil, from: Pack? = nil, noun: Bool
               seen.insert(item.lowercased()).inserted else { return }
         out.append(item)
     }
+    // the other numbered entries first, each usually a meaning of its own (the money's bank 2 before the river's
+    // bank 1 sense 2)
+    // (another part of speech's entry adds nothing to a noun's row: bank 3, the verb, peraltar)
+    let verbish = #"^[^▸]{0,80}?\b(?:verb|vt|vi|ww|overg|onoverg)\b"#
+    for o in others where matches(e, verbish) == matches(o, verbish) { add(gloss(o, target: target, from: from, noun: noun)) }
     let number = { (n: Int) in #"(?<=[\s.~;])"# + String(n) + #"(?=\s?[\p{L}\[(<])"# }
     // (a new part of speech ends the senses: "A noun 1 … B transitive verb 1 …", Greek's "Bvt 1…")
     let part = #"\s[B-D](?:\s|(?=vt|vi|v\b|n\b|adj|adv))"#
@@ -452,9 +468,6 @@ func senses(_ entry: String?, target: Pack? = nil, from: Pack? = nil, noun: Bool
             add(gloss(head + "1 " + e[r.upperBound...].drop { $0.isWhitespace }, target: target, from: from, noun: noun))
         }
     }
-    // (another part of speech's entry adds nothing to a noun's row: bank 3, the verb, peraltar)
-    let verbish = #"^[^▸]{0,80}?\b(?:verb|vt|vi|ww|overg|onoverg)\b"#
-    for o in others where matches(e, verbish) == matches(o, verbish) { add(gloss(o, target: target, from: from, noun: noun)) }
     return out
 }
 

@@ -108,9 +108,12 @@ func entry(_ raw: String, hint: String) -> Entry? {
             let others = verb ? [] : records(word, in: p.bilingual).filter {
                 $0 != t && englishSide($0, in: p.bilingual) && group($0, numbered) != nil && group($0, numbered) == group(t, numbered)
             }
-            let part = verb ? verbEntry(t, word, p, intransitive: intransitive) : mainPart(t, p, firstPart(en))
-            var row = senses(part, target: p, from: p, noun: noun, others: others)
-            if row.isEmpty, verb { row = laterVerbParts(part, p).lazy.map { senses($0, target: p, from: p) }.first { !$0.isEmpty } ?? [] }
+            var part = verb ? verbEntry(t, word, p, intransitive: intransitive) : mainPart(t, p, firstPart(en))
+            // (a verb section whose sense 1 holds no translation: the next one, before its own sense 2 could lead)
+            if verb, gloss(part, target: p, from: p).isEmpty, let next = laterVerbParts(part, p).first(where: { !gloss($0, target: p, from: p).isEmpty }) {
+                part = next
+            }
+            let row = senses(part, target: p, from: p, noun: noun, others: others)
             return (p.code, row.joined(separator: " · "))
         }
         let sections = [(english.monolingual ?? "English", en)] + others.map { p in (title(p.bilingual ?? p.name), bil[p.code]) }
