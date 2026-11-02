@@ -40,6 +40,19 @@ final class SettingsModel: ObservableObject {
     }
 
     var changed: Bool { saved != snapshot }
+
+    // a new user's settings, as Config's defaults: into the window only, applied by Save and Restart like any change
+    var defaults: Snapshot {
+        let d = Config()
+        return Snapshot(languages: Set(d.languages + ["en"]), hotkey: d.hotkey, typeKey: Shortcut.from(d.typeShortcut).id, menuBar: d.menuBar,
+                        closeAfter: d.closeAfter, storeType: d.store.type, storePath: d.store.path ?? "", saveDate: d.store.saveDate)
+    }
+    var isDefault: Bool { snapshot == defaults }
+    func restoreDefaults() {
+        let d = defaults
+        languages = d.languages; hotkey = d.hotkey; typeKey = d.typeKey; menuBar = d.menuBar
+        closeAfter = d.closeAfter; storeType = d.storeType; storePath = d.storePath; saveDate = d.saveDate
+    }
     var defaultPath: String { Paths.support.appendingPathComponent(storeType == "json" ? "vocabulary.json" : "Vocabulary.md").path }
 
     // into config.json: these keys only; any other key stays
@@ -207,6 +220,8 @@ struct SettingsView: View {
             .formStyle(.grouped)
 
             HStack {
+                Button("Restore Defaults") { model.restoreDefaults() }.disabled(model.isDefault)
+                    .help("A new user's settings, in this window; nothing changes until Save and Restart. Your vocabulary file stays as it is.")
                 if model.changed { Text("Changes apply after a restart.").font(.caption).foregroundStyle(.secondary) }
                 Spacer()
                 Button("Cancel") { onDone(false) }.keyboardShortcut(.cancelAction)
@@ -227,13 +242,15 @@ struct ShortcutRecorder: View {
     @ObservedObject var model: SettingsModel
     var body: some View {
         HStack(spacing: 6) {
-            Button(model.recordingShortcut ? "Press a shortcut…" : Shortcut.from(model.typeKey).symbol) {
-                model.recordingShortcut ? model.stopRecording() : model.startRecording()
+            // with no shortcut, the button asks for one, rather than read "Off" as if it were a switch
+            Button { model.recordingShortcut ? model.stopRecording() : model.startRecording() } label: {
+                Text(model.recordingShortcut ? "Press a shortcut…" : model.typeKey == "none" ? "Record Shortcut" : Shortcut.from(model.typeKey).symbol)
+                    .frame(minWidth: 110)
             }
-            .frame(minWidth: 110)
             .help("Click, then press the keys: at least one of ⌃ Control, ⌥ Option or ⌘ Command, and a key. Escape cancels.")
             if model.typeKey != "none" && !model.recordingShortcut {
-                Button("Off") { model.typeKey = "none" }.help("No shortcut: the box opens from the menu bar menu only")
+                Button { model.typeKey = "none" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .buttonStyle(.borderless).help("Turn the shortcut off: the box then opens from the menu bar menu only")
             }
         }
         .onDisappear { model.stopRecording() }
