@@ -375,24 +375,35 @@ func headword(_ entry: String) -> String {  // μεταφέρ[ν]ω; φοβού�
     replacing(String(entry.prefix { !$0.isWhitespace }), #"\[[^\]]*\]"#, "").trimmingCharacters(in: .punctuationCharacters)
 }
 
-// A pack's lemma list (form ⇥ lemma, e.g. simplemma's), read once, on first use.
-var lemmaLists: [String: [String: String]] = [:]
+// A pack's lemma list (form ⇥ lemma, e.g. simplemma's), read once, on first use. A form spelled exactly so (accents
+// kept) first, a lemma as itself, and only then a form equal without accents (ΠΑΙΔΙΑ, children): folded, γυναίκας
+// (of γυναίκα) is also γυναικᾶς (of γυναικάς, womanizer), and γυναίκα is γυναικά.
+var lemmaLists: [String: (exact: [String: String], folded: [String: String])] = [:]
 func lemma(_ word: String, _ p: Pack) -> String? {
     guard let file = p.lemmas else { return nil }
+    let exact = { (s: String) in s.lowercased().replacingOccurrences(of: "ς", with: "σ") }
     if lemmaLists[p.code] == nil {
-        var list: [String: String] = [:]
+        var list: [String: String] = [:], folded: [String: String] = [:], lemmas = Set<String>()
         let url = p.dir.appendingPathComponent(file)
         let raw = file.hasSuffix(".xz") ? (try? (NSData(contentsOf: url) as NSData?)?.decompressed(using: .lzma)) as Data?
                                           : try? Data(contentsOf: url)
         if let raw, let text = String(data: raw, encoding: .utf8) {
             for line in text.split(separator: "\n") {
                 let cols = line.split(separator: "\t", maxSplits: 1)
-                if cols.count == 2 { list[fold(String(cols[0]))] = String(cols[1]) }
+                guard cols.count == 2 else { continue }
+                let form = String(cols[0]), l = String(cols[1])
+                if list[exact(form)] == nil { list[exact(form)] = l }
+                folded[fold(form)] = l
+                lemmas.insert(l)
             }
         } else { log("no \(url.path)") }
-        lemmaLists[p.code] = list
+        for l in lemmas {
+            if list[exact(l)] == nil { list[exact(l)] = l }
+            if folded[fold(l)] == nil { folded[fold(l)] = l }
+        }
+        lemmaLists[p.code] = (list, folded)
     }
-    return lemmaLists[p.code]?[fold(word)]
+    return lemmaLists[p.code].flatMap { $0.exact[exact(word)] ?? $0.folded[fold(word)] }
 }
 
 // The headword a pack's dictionaries list for a word: one spelled exactly so (accents kept) first, then one equal
