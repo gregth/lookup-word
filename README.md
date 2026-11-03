@@ -57,8 +57,9 @@ lands in my vocabulary file without my doing anything. What I look up while work
   finds the base form (*είδε* → *βλέπω*).
 - **Words Look Up can't read.** Look Up needs the app to hand it the text. With nothing selected and Screen Recording
   allowed, Lookup Word reads the word under the pointer off the screen, so it also works on text in an image in an
-  app without Live Text, or on a remote desktop. macOS's text recognition doesn't read Greek, so this works for your
-  other languages only.
+  app without Live Text, or on a remote desktop. macOS's text recognition doesn't read Greek: Lookup Word maps the
+  letters it misreads back to Greek and checks them against the app's own text where the app shares it (Chrome and
+  Electron apps do). In images and remote desktops there's no text to check against, so select or type Greek words there.
 
 ## Ways to use it
 
@@ -79,7 +80,7 @@ lands in my vocabulary file without my doing anything. What I look up while work
   to JSON instead.
 - **Your notes.** Point the vocabulary file at a note in Obsidian, Logseq or any Markdown notes app, and the list
   lives with your other notes.
-- **Subtitles, photos and slides.** Point at a word in a video, a screenshot or a shared screen: the card reads it off
+- **Photos, screenshots and slides.** Point at a word in an image, a screenshot or a shared screen: the card reads it off
   the screen, so words you can't select count too.
 
 ## Requirements
@@ -164,7 +165,7 @@ VoiceOver announces); it also closes by itself after 30 seconds.
 
 - Rest the mouse pointer on the word, without selecting anything. Then press ⌥ twice. Lookup Word finds the word,
   highlights it in yellow, and shows its card.
-- This also works where you can't select text: pictures, videos, some apps and remote desktops.
+- This also works where you can't select text: pictures, some apps and remote desktops.
 - Lookup Word needs a second permission for this, which macOS calls **Screen Recording**. Don't let the name worry
   you: Lookup Word only takes a picture of a small area around the pointer, only when you press the keys, and never
   saves it or sends it anywhere (unless you turn on `"debug": true` for troubleshooting).
@@ -261,12 +262,12 @@ folder per vocabulary file.
 
 | Language | Tested by |
 |---|---|
-| 🇬🇧 English, always on: the others translate through it | its author's daily use |
-| 🇳🇱 Dutch | its author's daily use |
-| 🇬🇷 Greek | its author, a native speaker |
-| 🇫🇷 French | **community**: test words only, no native speaker yet |
-| 🇩🇪 German | **community**: test words only, no native speaker yet |
-| 🇪🇸 Spanish | **community**: test words only, no native speaker yet |
+| EN English, always on: the others translate through it | its author's daily use |
+| NL Dutch | its author's daily use |
+| EL Greek | its author, a native speaker |
+| FR French | **community**: test words only, no native speaker yet |
+| DE German | **community**: test words only, no native speaker yet |
+| ES Spanish | **community**: test words only, no native speaker yet |
 
 A language is on at first when your Mac uses it; turn the others on in **Settings… → Languages**.
 
