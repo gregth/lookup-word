@@ -375,10 +375,13 @@ func headword(_ entry: String) -> String {  // μεταφέρ[ν]ω; φοβού�
     replacing(String(entry.prefix { !$0.isWhitespace }), #"\[[^\]]*\]"#, "").trimmingCharacters(in: .punctuationCharacters)
 }
 
-// A pack's lemma list (form ⇥ lemma, e.g. simplemma's), read once, on first use, under each form without accents.
-// Of the rows a word matches so, the one spelled exactly as it is first (Δευτέρας, Monday's; δευτέρας, second's), then
-// the same in lower case, then the last (ΠΑΙΔΙΑ, children); a lemma counts as its own form, before the rows: without
-// accents, γυναίκας (of γυναίκα) is also γυναικᾶς (of γυναικάς, womanizer), and γυναίκα is γυναικά.
+// A pack's lemma list (form ⇥ lemma, e.g. simplemma's), read once, on first use, under each form without accents:
+// without them, γυναίκας (of γυναίκα) is also γυναικᾶς (of γυναικάς, womanizer). A lemma counts as its own form. Of
+// the rows a word matches, those spelled as it is come first (Δευτέρας, Monday's, before δευτέρας, second's), then
+// those equal in lower case, then the rest (ΠΑΙΔΙΑ, children), the last row first within each. The lemma is the first
+// that X - English has as a headword spelled so, and a capitalised one only as a capitalised headword, so a name it
+// lacks is passed over: Ιστίων is ιστίο (sail), not Ιστία; Αργούς is αργός, not the ship Αργώ, though the verb αργώ
+// is there. If none is, the first.
 var lemmaLists: [String: [String: [(form: String, lemma: String)]]] = [:]
 func lemma(_ word: String, _ p: Pack) -> String? {
     guard let file = p.lemmas else { return nil }
@@ -400,7 +403,19 @@ func lemma(_ word: String, _ p: Pack) -> String? {
     }
     guard let rows = lemmaLists[p.code]?[fold(word)] else { return nil }
     let lower = { (s: String) in s.lowercased().replacingOccurrences(of: "ς", with: "σ") }
-    return (rows.last { $0.form == word } ?? rows.last { lower($0.form) == lower(word) } ?? rows.last)?.lemma
+    var seen = Set<String>()
+    let spelled = (rows.reversed().filter { $0.form == word } + rows.reversed().filter { lower($0.form) == lower(word) })
+        .map(\.lemma).filter { seen.insert($0).inserted }
+    let ranked = spelled + rows.reversed().map(\.lemma).filter { seen.insert($0).inserted }
+    func translated(_ l: String) -> Bool {
+        // (accents kept: λογία's search answers λόγια, words; a homograph's number dropped, λόγιος1)
+        guard let t = define(l, in: p.bilingual) else { return false }
+        let h = replacing(headword(t), #"\d+$"#, "")
+        return lower(h) == lower(l) && (!(l.first?.isUppercase ?? false) || (h.first?.isUppercase ?? false))
+    }
+    // (a word that is a lemma itself stays among its own spelling: γυναικάς, which X - English only points from)
+    if spelled.contains(where: { lower($0) == lower(word) }) { return spelled.first(where: translated) ?? spelled.first }
+    return ranked.first(where: translated) ?? ranked.first
 }
 
 // The headword a pack's dictionaries list for a word: one spelled exactly so (accents kept) first, then one equal
