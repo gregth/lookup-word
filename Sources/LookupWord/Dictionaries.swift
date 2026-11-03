@@ -42,6 +42,10 @@ func define(_ word: String, in name: String?, follow: Bool = true) -> String? {
     if t.count < 80, let target = group(t, #"▶\s*(?:→|see|ver|(?:plural|past tense|past participle) of)?\s*([^\s,.;\d]+)"#) {
         return pointed(target.lowercased(), from: t, in: name) ?? t
     }
+    // (one whose sense only points, its idioms after: "μονή nf ▶ βλ. λ. μοναστήρι IDIOMS …", see the word μοναστήρι)
+    if let target = group(String(t.prefix(80)), #"^[^▶▸]{0,40}▶\s*βλ\.\s*λ\.\s*([^\s,.;\d]+)"#) {
+        return pointed(target.lowercased(), from: t, in: name) ?? t
+    }
     // an inflected form's stub that names its verb ("ging | ɡɪŋ | 1.u. 3. Pers.Sg.Prät. v. gehen", "gemacht A
     // 2. Part. v. machen B adjective"): that verb's entry
     if let target = stubVerb(t) { return pointed(target, from: t, in: name) ?? t }
@@ -408,8 +412,9 @@ func lemma(_ word: String, _ p: Pack) -> String? {
         .map(\.lemma).filter { seen.insert($0).inserted }
     let ranked = spelled + rows.reversed().map(\.lemma).filter { seen.insert($0).inserted }
     func translated(_ l: String) -> Bool {
-        // (accents kept: λογία's search answers λόγια, words; a homograph's number dropped, λόγιος1)
-        guard let t = define(l, in: p.bilingual) else { return false }
+        // (accents kept: λογία's search answers λόγια, words; a homograph's number dropped, λόγιος1; its own entry,
+        // though it only points: μονή's, to μοναστήρι)
+        guard let t = define(l, in: p.bilingual, follow: false) else { return false }
         let h = replacing(headword(t), #"\d+$"#, "")
         return lower(h) == lower(l) && (!(l.first?.isUppercase ?? false) || (h.first?.isUppercase ?? false))
     }
