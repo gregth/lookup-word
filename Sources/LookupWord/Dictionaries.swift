@@ -392,7 +392,7 @@ func lemma(_ word: String, _ p: Pack) -> String? {
                 let cols = line.split(separator: "\t", maxSplits: 1)
                 guard cols.count == 2 else { continue }
                 let form = String(cols[0]), l = String(cols[1])
-                if list[exact(form)] == nil { list[exact(form)] = l }
+                list[exact(form)] = l  // (the last row, as before: Άγιος's rows come before άγιο's for αγίου)
                 folded[fold(form)] = l
                 lemmas.insert(l)
             }
