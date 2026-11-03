@@ -94,6 +94,9 @@ func entry(_ raw: String, hint: String) -> Entry? {
         ? String(main.prefix(w.count)) : replacing(String(main.prefix { !$0.isWhitespace && $0 != "|" }), #"\d+$"#, "")
     word = replacing(word, #"\[[^\]]*\]"#, "").trimmingCharacters(in: .punctuationCharacters)  // μεταφέρ[ν]ω, φοβούμαι,
     if word.isEmpty { word = w }
+    // a word in its own script that X - English only points to a synonym of ("γυναικάς ▶ → γυναικάκιας"), while its
+    // own dictionary lists it: the word itself, unless that is a lemma it was given (μέρα, whose lemma is ημέρα)
+    if lang.script != nil, fold(raw) == fold(w), fold(word) != fold(w), let h = listed(w, lang), fold(h) == fold(w) { word = h }
     let ipa = main.range(of: #"\| ([^|]+) \|"#, options: .regularExpression).map {
         String(main[$0]).trimmingCharacters(in: .init(charactersIn: "| "))
     } ?? ""
